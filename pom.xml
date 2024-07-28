@@ -12,7 +12,7 @@
 
     <artifactId>utility</artifactId>
     <version>0.0.3-beta</version>
-    <name>parent</name>
+    <name>utility</name>
     <description>utility of io.github.dao1230source</description>
     <url>https://github.com/Dao1230source/utility.git</url>
     <licenses>
