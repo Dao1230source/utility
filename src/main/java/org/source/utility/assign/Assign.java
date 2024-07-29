@@ -239,7 +239,7 @@ public class Assign<E> {
                 List<? extends CompletableFuture<? extends Map<?, ?>>> completableFutureList = this.acquires.stream()
                         .map(a -> CompletableFuture.supplyAsync(() -> a.fetch(this.mainData), this.executor))
                         .toList();
-                CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0]));
+                CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
             } catch (Exception e) {
                 log.error("Assign parallel fetch data exception", e);
             }
