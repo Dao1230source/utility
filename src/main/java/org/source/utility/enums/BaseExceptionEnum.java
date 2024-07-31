@@ -39,6 +39,8 @@ public enum BaseExceptionEnum implements EnumProcessor<BaseException> {
     SIZE_MIN("大小必须大于"),
     MUST_BE_ENUM_TYPE("必须是枚举类型"),
     FIELD_NAME_INVALID("字段名称不正确"),
+    RECORD_NOT_FOUND("数据未找到"),
+    RECORD_HAS_EXISTS("数据已存在"),
 
     /**
      * http request

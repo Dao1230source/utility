@@ -6,34 +6,11 @@
     <parent>
         <groupId>io.github.dao1230source</groupId>
         <artifactId>parent</artifactId>
-        <version>0.0.3-beta</version>
+        <version>0.0.5</version>
         <relativePath/>
     </parent>
 
     <artifactId>utility</artifactId>
-    <version>0.0.3-beta</version>
-    <name>utility</name>
-    <description>utility of io.github.dao1230source</description>
-    <url>https://github.com/Dao1230source/utility.git</url>
-    <licenses>
-        <license>
-            <name>The Apache Software License, Version 2.0</name>
-            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
-        </license>
-    </licenses>
-    <developers>
-        <developer>
-            <name>Zeng FuGen</name>
-            <email>dao1230.source@gmail.com</email>
-            <organization>dao1230</organization>
-            <organizationUrl>https://github.com/Dao1230source</organizationUrl>
-        </developer>
-    </developers>
-    <scm>
-        <connection>scm:git:git://github.com/Dao1230source/utility.git</connection>
-        <developerConnection>scm:git:ssh://Dao1230source/utility.git</developerConnection>
-        <url>https://github.com/Dao1230source/utility/tree/master</url>
-    </scm>
 
     <dependencies>
         <dependency>
@@ -78,6 +55,28 @@
         </dependency>
     </dependencies>
 
+    <name>utility</name>
+    <description>utility of io.github.dao1230source</description>
+    <url>https://github.com/Dao1230source/utility.git</url>
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>Zeng FuGen</name>
+            <email>dao1230.source@gmail.com</email>
+            <organization>dao1230</organization>
+            <organizationUrl>https://github.com/Dao1230source</organizationUrl>
+        </developer>
+    </developers>
+    <scm>
+        <connection>scm:git:git://github.com/Dao1230source/utility.git</connection>
+        <developerConnection>scm:git:ssh://Dao1230source/utility.git</developerConnection>
+        <url>https://github.com/Dao1230source/utility/tree/master</url>
+    </scm>
     <build>
         <plugins>
             <!-- 打包必备 -->
