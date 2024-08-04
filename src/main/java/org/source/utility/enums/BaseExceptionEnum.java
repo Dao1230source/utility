@@ -32,6 +32,7 @@ public enum BaseExceptionEnum implements EnumProcessor<BaseException> {
     /**
      * Assert
      */
+    VALIDATE_ERROR("参数检验错误"),
     NOT_NULL("不能为null"),
     NOT_EMPTY("不能为空"),
     NOT_EXISTS("不存在"),
