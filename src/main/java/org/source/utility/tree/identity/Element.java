@@ -9,8 +9,6 @@ import java.io.Serializable;
  * @author zengfugen
  */
 public interface Element<I> extends Comparable<Element<I>>, Serializable {
-    long serialVersionUID = 2405172041950251807L;
-
     /**
      * get id
      *

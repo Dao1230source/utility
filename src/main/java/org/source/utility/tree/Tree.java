@@ -1,25 +1,28 @@
 package org.source.utility.tree;
 
-import lombok.Getter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import lombok.*;
 import org.source.utility.tree.identity.AbstractNode;
 import org.source.utility.tree.identity.Element;
+import org.source.utility.tree.identity.StringElement;
 import org.source.utility.utils.Streams;
 import org.springframework.util.CollectionUtils;
 
 import java.util.*;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.*;
 
+@Getter
 public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
-    private final Map<I, N> idMap = HashMap.newHashMap(32);
+    @JsonIgnore
+    private final Map<I, N> idMap = new ConcurrentHashMap<>(32);
+    @JsonIgnore
     private final Supplier<N> newInstance;
-    private final BiConsumer<N, E> elementHandler;
-    @Getter
-    protected final N root;
+    @JsonIgnore
+    private final Consumer<N> elementHandler;
+    private final N root;
 
-    public Tree(Supplier<N> newInstance, BiConsumer<N, E> elementHandler) {
+    public Tree(Supplier<N> newInstance, Consumer<N> elementHandler) {
         this.newInstance = newInstance;
         this.elementHandler = elementHandler;
         this.root = newInstance.get();
@@ -32,13 +35,12 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
         List<N> nodes = new TreeSet<>(es).stream().map(e -> {
             N n = this.newInstance.get();
             n.setElement(e);
-            this.elementHandler.accept(n, e);
             return n;
         }).toList();
         List<N> absentNodes = nodes.stream().filter(n -> !this.idMap.containsKey(n.getId())).toList();
         this.idMap.putAll(Streams.toMap(absentNodes, AbstractNode::getId, Function.identity()));
-        nodes.forEach(k -> {
-            I parentId = k.getParentId();
+        nodes.forEach(n -> {
+            I parentId = n.getParentId();
             N parent;
             if (Objects.isNull(parentId)) {
                 parent = root;
@@ -48,8 +50,9 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
                     parent = root;
                 }
             }
-            parent.addChild(k);
-            k.setParent(parent);
+            parent.addChild(n);
+            n.setParent(parent);
+            this.elementHandler.accept(n);
         });
         return root;
     }
@@ -73,4 +76,31 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
         ns.forEach(n -> this.idMap.remove(n.getId()));
     }
 
+    public int size() {
+        return this.idMap.size();
+    }
+
+    public void forEach(BiConsumer<I, N> biConsumer) {
+        this.idMap.forEach(biConsumer);
+    }
+
+    public <J, F extends Element<J>, O extends AbstractNode<J, F, O>> Tree<J, F, O> cast(Function<E, F> mapper) {
+        Tree<J, F, O> newTree = this.root.emptyTree();
+        Map<J, O> targetIdMap = new ConcurrentHashMap<>(idMap.size());
+        O newRoot = AbstractNode.cast(this.root, mapper, targetIdMap);
+        newTree.idMap.putAll(targetIdMap);
+        newTree.root.setElement(newRoot.getElement());
+        newTree.root.setChildren(newRoot.getChildren());
+        return newTree;
+    }
+
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @EqualsAndHashCode(callSuper = true)
+    @Data
+    static class DemoElement extends StringElement {
+        private String id;
+        private String parentId;
+        private String name;
+    }
 }
