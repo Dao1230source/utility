@@ -1,11 +1,11 @@
 package org.source.utility.tree;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import lombok.*;
+import lombok.Getter;
 import org.source.utility.tree.identity.AbstractNode;
 import org.source.utility.tree.identity.Element;
-import org.source.utility.tree.identity.StringElement;
 import org.source.utility.utils.Streams;
+import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
 import java.util.*;
@@ -29,32 +29,55 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
     }
 
     public N add(Collection<? extends E> es) {
+        return add(es, null);
+    }
+
+    /**
+     * 新增元素
+     *
+     * @param es               es
+     * @param updateOldHandler {@literal <new,old>}用新数据更新旧数据，为null时id重复不更新
+     * @return node
+     */
+    public N add(Collection<? extends E> es, @Nullable BiConsumer<N, N> updateOldHandler) {
         if (CollectionUtils.isEmpty(es)) {
             return root;
         }
-        List<N> nodes = new TreeSet<>(es).stream().map(e -> {
+        es.stream().map(e -> {
             N n = this.newInstance.get();
             n.setElement(e);
             return n;
-        }).toList();
-        List<N> absentNodes = nodes.stream().filter(n -> !this.idMap.containsKey(n.getId())).toList();
-        this.idMap.putAll(Streams.toMap(absentNodes, AbstractNode::getId, Function.identity()));
-        nodes.forEach(n -> {
-            I parentId = n.getParentId();
-            N parent;
-            if (Objects.isNull(parentId)) {
-                parent = root;
-            } else {
-                parent = this.idMap.get(parentId);
-                if (Objects.isNull(parent)) {
-                    parent = root;
+        }).forEach(n -> this.idMap.compute(n.getId(), (k, old) -> {
+            // 已存在key对应的数据
+            if (Objects.nonNull(old)) {
+                // 更新
+                if (Objects.nonNull(updateOldHandler)) {
+                    updateOldHandler.accept(n, old);
+                    return old;
                 }
+                return old;
+            } else {
+                this.addChild(n);
+                return n;
             }
-            parent.addChild(n);
-            n.setParent(parent);
-            this.elementHandler.accept(n);
-        });
+        }));
         return root;
+    }
+
+    private void addChild(N n) {
+        I parentId = n.getParentId();
+        N parent;
+        if (Objects.isNull(parentId)) {
+            parent = root;
+        } else {
+            parent = this.idMap.get(parentId);
+            if (Objects.isNull(parent)) {
+                parent = root;
+            }
+        }
+        parent.addChild(n);
+        n.setParent(parent);
+        this.elementHandler.accept(n);
     }
 
     public List<N> find(Predicate<N> predicate) {
@@ -84,23 +107,24 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
         this.idMap.forEach(biConsumer);
     }
 
-    public <J, F extends Element<J>, O extends AbstractNode<J, F, O>> Tree<J, F, O> cast(Function<E, F> mapper) {
+    /**
+     * 新建一个tree，保留和源tree一样的结构，并将节点负载的元素从E类型的转换为F类型
+     *
+     * @param mapper         转换函数
+     * @param parentIdSetter 父ID设置函数
+     * @param <J>            J对应I
+     * @param <F>            F对应E
+     * @param <O>            O对应N
+     * @return {@literal Tree<J, F, O>}
+     */
+    public <J, F extends Element<J>, O extends AbstractNode<J, F, O>> Tree<J, F, O> cast(Function<E, F> mapper,
+                                                                                         BiConsumer<F, J> parentIdSetter) {
         Tree<J, F, O> newTree = this.root.emptyTree();
         Map<J, O> targetIdMap = new ConcurrentHashMap<>(idMap.size());
-        O newRoot = AbstractNode.cast(this.root, mapper, targetIdMap);
+        O newRoot = AbstractNode.cast(this.root, targetIdMap, mapper, parentIdSetter);
         newTree.idMap.putAll(targetIdMap);
         newTree.root.setElement(newRoot.getElement());
         newTree.root.setChildren(newRoot.getChildren());
         return newTree;
-    }
-
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @EqualsAndHashCode(callSuper = true)
-    @Data
-    static class DemoElement extends StringElement {
-        private String id;
-        private String parentId;
-        private String name;
     }
 }

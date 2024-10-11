@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 @Slf4j
@@ -50,16 +51,20 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
     }
 
     public static <I, E extends Element<I>, N extends AbstractNode<I, E, N>,
-            J, F extends Element<J>, O extends AbstractNode<J, F, O>> O cast(N node, Function<E, F> mapper,
-                                                                             Map<J, O> targetIdMap) {
+            J, F extends Element<J>, O extends AbstractNode<J, F, O>> O cast(N node, Map<J, O> targetIdMap,
+                                                                             Function<E, F> mapper,
+                                                                             BiConsumer<F, J> parentIdSetter) {
         O newNode = node.cast(mapper);
         if (Objects.nonNull(newNode.getId())) {
             targetIdMap.put(newNode.getId(), newNode);
         }
         if (!CollectionUtils.isEmpty(node.getChildren())) {
             newNode.setChildren(node.getChildren().stream().map(n -> {
-                O newChildNode = AbstractNode.cast(n, mapper, targetIdMap);
+                O newChildNode = AbstractNode.cast(n, targetIdMap, mapper, parentIdSetter);
                 newChildNode.setParent(newNode);
+                if (Objects.nonNull(newChildNode.getElement())) {
+                    parentIdSetter.accept(newChildNode.getElement(), newNode.getId());
+                }
                 return newChildNode;
             }).toList());
         }
