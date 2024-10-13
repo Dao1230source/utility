@@ -121,7 +121,7 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
                                                                                          BiConsumer<F, J> parentIdSetter) {
         Tree<J, F, O> newTree = this.root.emptyTree();
         Map<J, O> targetIdMap = new ConcurrentHashMap<>(idMap.size());
-        O newRoot = AbstractNode.cast(this.root, targetIdMap, mapper, parentIdSetter);
+        O newRoot = AbstractNode.cast(this.root, mapper, parentIdSetter, targetIdMap);
         newTree.idMap.putAll(targetIdMap);
         newTree.root.setElement(newRoot.getElement());
         newTree.root.setChildren(newRoot.getChildren());

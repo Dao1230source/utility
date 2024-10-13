@@ -11,6 +11,12 @@ public class Constants {
     public static final String IS = "is";
     public static final String WHERE = "where";
 
+    public static final String COLUMN_ID = "id";
+    public static final String COLUMN_CREATE_USER = "create_user";
+    public static final String COLUMN_CREATE_TIME = "create_time";
+    public static final String COLUMN_UPDATE_USER = "update_user";
+    public static final String COLUMN_UPDATE_TIME = "update_time";
+
     public static final String DIAGONAL = "/";
     public static final String JODD = "jodd";
     public static final String AMPERSAND = "&";

@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.source.utility.tree.Tree;
 import org.source.utility.utils.Jsons;
+import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
@@ -50,17 +51,33 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
         return newNode;
     }
 
+    /**
+     * 转换为另一个node
+     *
+     * @param node           source
+     * @param mapper         convert
+     * @param parentIdSetter set parentId
+     * @param targetIdMap    目标node的{@literal Map<id,node>}
+     * @param <I>            I
+     * @param <E>            E
+     * @param <N>            N
+     * @param <J>            J对应I
+     * @param <F>            F对应E
+     * @param <O>            O对应N
+     * @return O
+     */
     public static <I, E extends Element<I>, N extends AbstractNode<I, E, N>,
-            J, F extends Element<J>, O extends AbstractNode<J, F, O>> O cast(N node, Map<J, O> targetIdMap,
+            J, F extends Element<J>, O extends AbstractNode<J, F, O>> O cast(N node,
                                                                              Function<E, F> mapper,
-                                                                             BiConsumer<F, J> parentIdSetter) {
+                                                                             BiConsumer<F, J> parentIdSetter,
+                                                                             @Nullable Map<J, O> targetIdMap) {
         O newNode = node.cast(mapper);
-        if (Objects.nonNull(newNode.getId())) {
+        if (Objects.nonNull(targetIdMap) && Objects.nonNull(newNode.getId())) {
             targetIdMap.put(newNode.getId(), newNode);
         }
         if (!CollectionUtils.isEmpty(node.getChildren())) {
             newNode.setChildren(node.getChildren().stream().map(n -> {
-                O newChildNode = AbstractNode.cast(n, targetIdMap, mapper, parentIdSetter);
+                O newChildNode = AbstractNode.cast(n, mapper, parentIdSetter, targetIdMap);
                 newChildNode.setParent(newNode);
                 if (Objects.nonNull(newChildNode.getElement())) {
                     parentIdSetter.accept(newChildNode.getElement(), newNode.getId());
@@ -69,6 +86,13 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
             }).toList());
         }
         return newNode;
+    }
+
+    public static <I, E extends Element<I>, N extends AbstractNode<I, E, N>,
+            J, F extends Element<J>, O extends AbstractNode<J, F, O>> O cast(N node,
+                                                                             Function<E, F> mapper,
+                                                                             BiConsumer<F, J> parentIdSetter) {
+        return cast(node, mapper, parentIdSetter, null);
     }
 
     @Override
