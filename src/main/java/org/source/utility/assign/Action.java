@@ -32,13 +32,13 @@ public class Action<E, K, T> {
         return addAssemble((e, t) -> eSetter.accept(e, tGetter.apply(t)));
     }
 
-    public <P> Action<E, K, T> addAssemble(BiConsumer<E, T> getAndSet) {
+    public Action<E, K, T> addAssemble(BiConsumer<E, T> getAndSet) {
         Assemble<E, T> assemble = new Assemble<>(getAndSet);
         this.assembles.add(assemble);
         return this;
     }
 
-    public Action<E, K, T> test(Predicate<T> test) {
+    public Action<E, K, T> filter(Predicate<T> test) {
         this.test = test;
         return this;
     }

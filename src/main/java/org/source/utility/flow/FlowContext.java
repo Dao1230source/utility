@@ -47,7 +47,7 @@ public class FlowContext {
     }
 
     public void remove(@NonNull Flow flow) {
-        List<ProcessorRef> refList = Streams.getterByKey(this.processorRefList.get(), ProcessorRef::getFlowName,
+        List<ProcessorRef> refList = Streams.retain(this.processorRefList.get(), ProcessorRef::getFlowName,
                 flow.getName()).toList();
         this.processorRefList.get().removeAll(refList);
         refList.forEach(k -> this.processorMap.get().remove(k));
@@ -77,7 +77,7 @@ public class FlowContext {
     }
 
     public <I, O> Flow<I, O> getFlow(Processor processor) {
-        List<ProcessorRef> refList = Streams.getterByKey(this.processorRefList.get(), ProcessorRef::getName,
+        List<ProcessorRef> refList = Streams.retain(this.processorRefList.get(), ProcessorRef::getName,
                 processor.getName()).toList();
         ProcessorRef processorRef = refList.get(refList.size() - 1);
         return this.processorMap.get().get(processorRef);

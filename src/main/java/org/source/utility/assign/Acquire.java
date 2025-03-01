@@ -4,10 +4,12 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
 import org.source.utility.utils.Jsons;
+import org.source.utility.utils.Streams;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -28,6 +30,7 @@ public class Acquire<E, K, T> {
     private BiConsumer<E, Map<K, T>> afterProcessor;
     private BiConsumer<E, Throwable> exceptionHandler;
     private Throwable throwable;
+    private Integer batchSize;
 
 
     public Acquire(Assign<E> assign, Function<Collection<K>, Map<K, T>> fetcher) {
@@ -66,6 +69,11 @@ public class Acquire<E, K, T> {
         return this;
     }
 
+    public Acquire<E, K, T> batchSize(int batchSize) {
+        this.batchSize = batchSize;
+        return this;
+    }
+
     public Action<E, K, T> addAction(Function<E, K> keyGetter) {
         Action<E, K, T> action = new Action<>(this, keyGetter);
         this.actions.add(action);
@@ -77,6 +85,7 @@ public class Acquire<E, K, T> {
     }
 
     Map<K, T> fetch(Collection<E> mainData) {
+        log.info("fetching main data, name:{}", name);
         if (Objects.nonNull(this.ktMap)) {
             return this.ktMap;
         }
@@ -90,8 +99,26 @@ public class Acquire<E, K, T> {
             this.ktMap = Map.of();
             return this.ktMap;
         }
-        this.ktMap = this.getFromCache(ks);
+        // 分批请求
+        if (Objects.nonNull(this.batchSize)) {
+            Map<K, T> result = new ConcurrentHashMap<>(ks.size());
+            List<? extends CompletableFuture<Void>> completableFutureList = Streams.partition(new ArrayList<>(ks), this.batchSize).stream().map(k ->
+                            CompletableFuture.runAsync(() -> this.getFromCacheAsync(k, result), this.assign.getExecutor()))
+                    .toList();
+            CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
+            this.ktMap = result;
+        } else {
+            this.ktMap = this.getFromCache(ks);
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("fetch result: {}", Jsons.str(this.ktMap));
+        }
         return this.ktMap;
+    }
+
+    private void getFromCacheAsync(Collection<K> ks, Map<K, T> result) {
+        Map<K, T> fromCache = this.getFromCache(new HashSet<>(ks));
+        result.putAll(fromCache);
     }
 
     private Map<K, T> getFromCache(Set<K> ks) {
@@ -101,9 +128,7 @@ public class Acquire<E, K, T> {
                 Cache<K, T> cache = (Cache<K, T>) CACHE_MAP.computeIfAbsent(this.name,
                         k -> (Cache<Object, Object>) this.cacherSupplier.get());
                 Map<K, T> cachedMap = cache.getAll(ks, keys -> this.fetcher.apply(ks));
-                if (log.isInfoEnabled()) {
-                    log.info("name:{}, cachedMap:{}", this.name, Jsons.str(cachedMap));
-                }
+                log.info("fetch data from cache");
                 return cachedMap;
             } else {
                 return this.fetcher.apply(ks);

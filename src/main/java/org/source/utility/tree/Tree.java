@@ -88,6 +88,10 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
         return Streams.of(this.idMap).map(Map::values).flatMap(Collection::stream).filter(predicate).findFirst();
     }
 
+    public N getById(I id) {
+        return this.idMap.get(id);
+    }
+
     public void remove(Predicate<N> predicate) {
         List<N> ns = find(predicate);
         ns.forEach(n -> {

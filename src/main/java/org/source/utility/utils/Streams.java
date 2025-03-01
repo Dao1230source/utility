@@ -1,6 +1,7 @@
 package org.source.utility.utils;
 
 import lombok.NonNull;
+import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 
@@ -11,6 +12,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
@@ -33,12 +35,9 @@ import java.util.stream.Stream;
  * <pre/>
  * @author zengfugen
  */
+@UtilityClass
 @Slf4j
 public class Streams {
-
-    private Streams() {
-        throw new IllegalStateException("Utility class");
-    }
 
     private static final int STREAM_PARALLEL_THRESHOLD = 1000;
 
@@ -54,8 +53,8 @@ public class Streams {
      * @param <E>       源列表泛型
      * @return 过滤后的结果
      */
-    public static <E> Stream<E> filterByPredicate(Collection<E> es,
-                                                  @NonNull Predicate<E> predicate) {
+    public static <E> Stream<E> notRetain(Collection<E> es,
+                                          @NonNull Predicate<E> predicate) {
         return of(es).filter(predicate.negate());
     }
 
@@ -71,9 +70,9 @@ public class Streams {
      * @return 过滤后的结果
      */
     @SafeVarargs
-    public static <E, T> Stream<E> filterByPredicate(Collection<E> es,
-                                                     @NonNull BiPredicate<E, T> biPredicate,
-                                                     @NonNull Collection<T>... collections) {
+    public static <E, T> Stream<E> notRetain(Collection<E> es,
+                                             @NonNull BiPredicate<E, T> biPredicate,
+                                             @NonNull Collection<T>... collections) {
         List<T> list = flat(collections).toList();
         return of(es).filter(k -> of(list).noneMatch(e -> biPredicate.test(k, e)));
     }
@@ -91,34 +90,20 @@ public class Streams {
      * @return e的stream
      */
     @SafeVarargs
-    public static <E, T, K> Stream<E> filterByOthers(Collection<E> es,
-                                                     @NonNull Function<E, K> ekGetter,
-                                                     @NonNull Function<T, K> tkGetter,
-                                                     @NonNull Collection<T>... collections) {
+    public static <E, T, K> Stream<E> notRetain(Collection<E> es,
+                                                @NonNull Function<E, K> ekGetter,
+                                                @NonNull Function<T, K> tkGetter,
+                                                @NonNull Collection<T>... collections) {
         Set<K> tkSet = flat(collections).map(tkGetter).collect(Collectors.toSet());
         return of(es).filter(k -> !tkSet.contains(ekGetter.apply(k)));
     }
 
     @SafeVarargs
-    public static <E, K> Stream<E> filterByOthers(Collection<E> es,
-                                                  @NonNull Function<E, K> ekGetter,
-                                                  @NonNull Collection<E>... collections) {
+    public static <E, K> Stream<E> notRetain(Collection<E> es,
+                                             @NonNull Function<E, K> ekGetter,
+                                             @NonNull Collection<E>... collections) {
         Set<K> tkSet = flat(collections).map(ekGetter).collect(Collectors.toSet());
         return of(es).filter(k -> !tkSet.contains(ekGetter.apply(k)));
-    }
-
-    @SafeVarargs
-    public static <E, K> Stream<E> filterByKeys(@NonNull Collection<E> es,
-                                                @NonNull Function<E, K> ekGetter,
-                                                @NonNull Collection<K>... collections) {
-        Set<K> tkSet = flat(collections).collect(Collectors.toSet());
-        return of(es).filter(k -> !tkSet.contains(ekGetter.apply(k)));
-    }
-
-    @SafeVarargs
-    public static <E, K> Stream<E> filterByKey(Collection<E> eList, @NonNull Function<E, K> keyGetter, K... values) {
-        Set<K> kSet = of(values).collect(Collectors.toSet());
-        return of(eList).filter(k -> !kSet.contains(keyGetter.apply(k)));
     }
 
     /**
@@ -132,7 +117,7 @@ public class Streams {
      * @return 选取后的结果
      */
     @SafeVarargs
-    public static <E, T> List<E> getterByPredicate(List<E> eList, @NonNull BiPredicate<E, T> biPredicate, List<T>... tLists) {
+    public static <E, T> List<E> retain(List<E> eList, @NonNull BiPredicate<E, T> biPredicate, List<T>... tLists) {
         if (tLists.length == 0) {
             return eList;
         }
@@ -148,7 +133,7 @@ public class Streams {
      * @param <E>       源列表泛型
      * @return 选取结果
      */
-    public static <E> Stream<E> getterByPredicate(Collection<E> eList, @NonNull Predicate<E> predicate) {
+    public static <E> Stream<E> retain(Collection<E> eList, @NonNull Predicate<E> predicate) {
         return of(eList).filter(predicate);
     }
 
@@ -165,48 +150,31 @@ public class Streams {
      * @return e的stream
      */
     @SafeVarargs
-    public static <E, T, K> Stream<E> getterByOthers(@NonNull Collection<E> es,
-                                                     @NonNull Function<E, K> ekGetter,
-                                                     @NonNull Function<T, K> tkGetter,
-                                                     @NonNull Collection<T>... collections) {
+    public static <E, T, K> Stream<E> retain(@NonNull Collection<E> es,
+                                             @NonNull Function<E, K> ekGetter,
+                                             @NonNull Function<T, K> tkGetter,
+                                             @NonNull Collection<T>... collections) {
         Set<K> tkSet = flat(collections).map(tkGetter).collect(Collectors.toSet());
         return of(es).filter(k -> tkSet.contains(ekGetter.apply(k)));
     }
 
     @SafeVarargs
-    public static <E, T, K> Stream<E> getterByOthers(@NonNull Collection<E> es,
-                                                     @NonNull Function<E, K> ekGetter,
-                                                     @NonNull Function<T, K> tkGetter,
-                                                     @NonNull Predicate<K> ekPredicate,
-                                                     @NonNull Collection<T>... collections) {
+    public static <E, T, K> Stream<E> retain(@NonNull Collection<E> es,
+                                             @NonNull Function<E, K> ekGetter,
+                                             @NonNull Function<T, K> tkGetter,
+                                             @NonNull Predicate<K> ekPredicate,
+                                             @NonNull Collection<T>... collections) {
         Set<K> tkSet = flat(collections).map(tkGetter).collect(Collectors.toSet());
         return of(es).filter(k -> ekPredicate.test(ekGetter.apply(k)) && tkSet.contains(ekGetter.apply(k)));
     }
 
     @SafeVarargs
-    public static <E, K> Stream<E> getterByOthers(@NonNull Collection<E> es,
-                                                  @NonNull Function<E, K> ekGetter,
-                                                  @NonNull Collection<E>... collections) {
+    public static <E, K> Stream<E> retain(@NonNull Collection<E> es,
+                                          @NonNull Function<E, K> ekGetter,
+                                          @NonNull Collection<E>... collections) {
         Set<K> tkSet = flat(collections).map(ekGetter).collect(Collectors.toSet());
         return of(es).filter(k -> tkSet.contains(ekGetter.apply(k)));
     }
-
-    @SafeVarargs
-    public static <T, K> Stream<K> getterByObjects(@NonNull Collection<K> ks,
-                                                   @NonNull Function<T, K> ekGetter,
-                                                   @NonNull Collection<T>... collections) {
-        Set<K> tkSet = flat(collections).map(ekGetter).collect(Collectors.toSet());
-        return of(ks).filter(tkSet::contains);
-    }
-
-    @SafeVarargs
-    public static <E, K> Stream<E> getterByKeys(@NonNull Collection<E> es,
-                                                @NonNull Function<E, K> ekGetter,
-                                                @NonNull Collection<K>... collections) {
-        Set<K> tkSet = flat(collections).collect(Collectors.toSet());
-        return of(es).filter(k -> tkSet.contains(ekGetter.apply(k)));
-    }
-
 
     /**
      * 源列表eList根据指定字段key的某些值ks选取结果
@@ -219,7 +187,7 @@ public class Streams {
      * @return 选取结果
      */
     @SafeVarargs
-    public static <E, K> Stream<E> getterByKey(Collection<E> eList, @NonNull Function<E, K> keyGetter, K... values) {
+    public static <E, K> Stream<E> retain(Collection<E> eList, @NonNull Function<E, K> keyGetter, K... values) {
         Set<K> kSet = of(values).collect(Collectors.toSet());
         return of(eList).filter(k -> kSet.contains(keyGetter.apply(k)));
     }
@@ -233,7 +201,7 @@ public class Streams {
      * @param <E>      源列表泛型
      * @return 是否存在
      */
-    public static <E, K> boolean existsKey(Collection<E> es, @NonNull Function<E, K> ekGetter, K key) {
+    public static <E, K> boolean exists(Collection<E> es, @NonNull Function<E, K> ekGetter, K key) {
         return of(es).anyMatch(k -> key.equals(ekGetter.apply(k)));
     }
 
@@ -246,7 +214,7 @@ public class Streams {
      * @param <E>      源列表泛型
      * @return 是否不存在
      */
-    public static <E, K> boolean notExistsKey(Collection<E> es, @NonNull Function<E, K> ekGetter, K key) {
+    public static <E, K> boolean notExists(Collection<E> es, @NonNull Function<E, K> ekGetter, K key) {
         return of(es).noneMatch(k -> key.equals(ekGetter.apply(k)));
     }
 
@@ -415,6 +383,17 @@ public class Streams {
 
     public static <T, R> Stream<R> flatMap(@NonNull Stream<T> eStream, Function<T, Stream<R>> mapper) {
         return eStream.flatMap(mapper);
+    }
+
+    public static <T> List<List<T>> partition(List<T> list, int batchSize) {
+        if (CollectionUtils.isEmpty(list)) {
+            return List.of();
+        }
+        if (batchSize <= 0) {
+            return List.of(list);
+        }
+        return IntStream.range(0, (list.size() + batchSize - 1) / batchSize).mapToObj(i ->
+                list.subList(i * batchSize, Math.min((i + 1) * batchSize, list.size()))).toList();
     }
 
     @SafeVarargs

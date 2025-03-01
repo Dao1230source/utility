@@ -1,6 +1,7 @@
 package org.source.utility.assign;
 
 import com.alibaba.ttl.threadpool.TtlExecutors;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.Unmodifiable;
 import org.source.utility.utils.Streams;
@@ -43,6 +44,7 @@ public class Assign<E> {
     /**
      * 多线程执行器
      */
+    @Getter
     private Executor executor;
     /**
      * 执行状态
@@ -152,7 +154,7 @@ public class Assign<E> {
     }
 
     public Assign<E> addBranch(Predicate<E> retain) {
-        List<E> list = Streams.filterByPredicate(this.mainData, retain).toList();
+        List<E> list = Streams.retain(this.mainData, retain).toList();
         return new Assign<>(list, this.depth + 1, this);
     }
 
