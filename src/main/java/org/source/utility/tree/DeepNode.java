@@ -15,27 +15,6 @@ public class DeepNode<I, E extends Element<I>> extends AbstractNode<I, E, DeepNo
     private final boolean upward;
     private int depth = 0;
 
-    public void downwardDepth() {
-        int currentDepth = this.getDepth();
-        DeepNode<I, E> parent = this.getParent();
-        if (Objects.nonNull(parent)) {
-            int parentDepth = parent.getDepth();
-            if (parentDepth < currentDepth + 1) {
-                parent.setDepth(currentDepth + 1);
-            }
-            parent.downwardDepth();
-        }
-    }
-
-    public void upwardDepth() {
-        DeepNode<I, E> parent = this.getParent();
-        int d = 0;
-        if (Objects.nonNull(parent)) {
-            d = parent.getDepth() + 1;
-        }
-        this.setDepth(d);
-    }
-
     @SuppressWarnings("unchecked")
     @Override
     public <J, F extends Element<J>, O extends AbstractNode<J, F, O>> O emptyNode() {
@@ -52,11 +31,32 @@ public class DeepNode<I, E extends Element<I>> extends AbstractNode<I, E, DeepNo
         return new DeepNode<>(upward);
     }
 
+    public static <I, E extends Element<I>> void downwardDepth(DeepNode<I, E> node) {
+        int currentDepth = node.getDepth();
+        DeepNode<I, E> parent = node.getParent();
+        if (Objects.nonNull(parent)) {
+            int parentDepth = parent.getDepth();
+            if (parentDepth < currentDepth + 1) {
+                parent.setDepth(currentDepth + 1);
+            }
+            downwardDepth(parent);
+        }
+    }
+
+    public static <I, E extends Element<I>> void upwardDepth(DeepNode<I, E> node) {
+        DeepNode<I, E> parent = node.getParent();
+        int d = 0;
+        if (Objects.nonNull(parent)) {
+            d = parent.getDepth() + 1;
+        }
+        node.setDepth(d);
+    }
+
     public static <I, E extends Element<I>> void nodeHandler(DeepNode<I, E> node) {
         if (node.upward) {
-            node.upwardDepth();
+            upwardDepth(node);
         } else {
-            node.downwardDepth();
+            downwardDepth(node);
         }
     }
 

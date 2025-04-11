@@ -70,14 +70,18 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
             J, F extends Element<J>, O extends AbstractNode<J, F, O>> O cast(N node,
                                                                              Function<E, F> mapper,
                                                                              BiConsumer<F, J> parentIdSetter,
-                                                                             @Nullable Map<J, O> targetIdMap) {
+                                                                             @Nullable Map<J, O> targetIdMap,
+                                                                             @Nullable BiConsumer<O, N> afterCreateHandler) {
         O newNode = node.cast(mapper);
+        if (Objects.nonNull(afterCreateHandler)) {
+            afterCreateHandler.accept(newNode, node);
+        }
         if (Objects.nonNull(targetIdMap) && Objects.nonNull(newNode.getId())) {
             targetIdMap.put(newNode.getId(), newNode);
         }
         if (!CollectionUtils.isEmpty(node.getChildren())) {
             newNode.setChildren(node.getChildren().stream().map(n -> {
-                O newChildNode = AbstractNode.cast(n, mapper, parentIdSetter, targetIdMap);
+                O newChildNode = AbstractNode.cast(n, mapper, parentIdSetter, targetIdMap, afterCreateHandler);
                 newChildNode.setParent(newNode);
                 if (Objects.nonNull(newChildNode.getElement())) {
                     parentIdSetter.accept(newChildNode.getElement(), newNode.getId());
@@ -92,7 +96,7 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
             J, F extends Element<J>, O extends AbstractNode<J, F, O>> O cast(N node,
                                                                              Function<E, F> mapper,
                                                                              BiConsumer<F, J> parentIdSetter) {
-        return cast(node, mapper, parentIdSetter, null);
+        return cast(node, mapper, parentIdSetter, null, null);
     }
 
     @Override

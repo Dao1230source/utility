@@ -29,7 +29,7 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
     }
 
     public N add(Collection<? extends E> es) {
-        return add(es, null);
+        return add(es, null, null, null);
     }
 
     /**
@@ -39,27 +39,36 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
      * @param updateOldHandler {@literal <new,old>}用新数据更新旧数据，为null时id重复不更新
      * @return node
      */
-    public N add(Collection<? extends E> es, @Nullable BiConsumer<N, N> updateOldHandler) {
+    public N add(Collection<? extends E> es,
+                 @Nullable Consumer<N> afterCreateHandler,
+                 @Nullable BinaryOperator<N> updateOldHandler,
+                 @Nullable Consumer<N> finallyHandler) {
         if (CollectionUtils.isEmpty(es)) {
             return root;
         }
         es.stream().map(e -> {
             N n = this.newInstance.get();
             n.setElement(e);
+            if (Objects.nonNull(afterCreateHandler)) {
+                afterCreateHandler.accept(n);
+            }
             return n;
         }).forEach(n -> this.idMap.compute(n.getId(), (k, old) -> {
+            N result = n;
             // 已存在key对应的数据
             if (Objects.nonNull(old)) {
                 // 更新
                 if (Objects.nonNull(updateOldHandler)) {
-                    updateOldHandler.accept(n, old);
-                    return old;
+                    result = updateOldHandler.apply(n, old);
                 }
                 return old;
             } else {
                 this.addChild(n);
-                return n;
             }
+            if (Objects.nonNull(finallyHandler)) {
+                finallyHandler.accept(result);
+            }
+            return result;
         }));
         return root;
     }
@@ -122,10 +131,11 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
      * @return {@literal Tree<J, F, O>}
      */
     public <J, F extends Element<J>, O extends AbstractNode<J, F, O>> Tree<J, F, O> cast(Function<E, F> mapper,
-                                                                                         BiConsumer<F, J> parentIdSetter) {
+                                                                                         BiConsumer<F, J> parentIdSetter,
+                                                                                         @Nullable BiConsumer<O, N> afterCreateHandler) {
         Tree<J, F, O> newTree = this.root.emptyTree();
         Map<J, O> targetIdMap = new ConcurrentHashMap<>(idMap.size());
-        O newRoot = AbstractNode.cast(this.root, mapper, parentIdSetter, targetIdMap);
+        O newRoot = AbstractNode.cast(this.root, mapper, parentIdSetter, targetIdMap, afterCreateHandler);
         newTree.idMap.putAll(targetIdMap);
         newTree.root.setElement(newRoot.getElement());
         newTree.root.setChildren(newRoot.getChildren());
