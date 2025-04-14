@@ -1,5 +1,6 @@
 package org.source.utility.tree.identity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -21,12 +22,22 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
     private E element;
     private N parent;
     private List<N> children;
+    @JsonIgnore
+    private transient Map<I, Integer> indexMap;
 
-    public void addChild(N child) {
+    public void addChild(N child, boolean keepOldIndex) {
         if (Objects.isNull(this.children)) {
             this.children = new ArrayList<>(16);
         }
-        this.children.add(child);
+        Integer i = indexMap.get(child.getId());
+        if (Objects.nonNull(i) && keepOldIndex) {
+            ((ArrayList<?>) this.children).remove(i);
+            this.children.add(i, child);
+            this.indexMap.put(child.getId(), i);
+        } else {
+            this.children.add(child);
+            this.indexMap.put(child.getId(), i);
+        }
     }
 
     public I getId() {

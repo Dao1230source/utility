@@ -29,7 +29,7 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
     }
 
     public N add(Collection<? extends E> es) {
-        return add(es, null, null, null);
+        return add(es, true, null, null, null);
     }
 
     /**
@@ -40,6 +40,7 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
      * @return node
      */
     public N add(Collection<? extends E> es,
+                 boolean keepOldIndex,
                  @Nullable Consumer<N> afterCreateHandler,
                  @Nullable BinaryOperator<N> updateOldHandler,
                  @Nullable Consumer<N> finallyHandler) {
@@ -54,17 +55,13 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
             }
             return n;
         }).forEach(n -> this.idMap.compute(n.getId(), (k, old) -> {
+            // 默认使用新的
             N result = n;
-            // 已存在key对应的数据
-            if (Objects.nonNull(old)) {
-                // 更新
-                if (Objects.nonNull(updateOldHandler)) {
-                    result = updateOldHandler.apply(n, old);
-                }
-                return old;
-            } else {
-                this.addChild(n);
+            // 如有更新处理器
+            if (Objects.nonNull(updateOldHandler)) {
+                result = updateOldHandler.apply(n, old);
             }
+            this.addChild(result, keepOldIndex);
             if (Objects.nonNull(finallyHandler)) {
                 finallyHandler.accept(result);
             }
@@ -73,7 +70,7 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
         return root;
     }
 
-    private void addChild(N n) {
+    private void addChild(N n, boolean keepOldIndex) {
         I parentId = n.getParentId();
         N parent;
         if (Objects.isNull(parentId)) {
@@ -84,7 +81,7 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
                 parent = root;
             }
         }
-        parent.addChild(n);
+        parent.addChild(n, keepOldIndex);
         n.setParent(parent);
         this.elementHandler.accept(n);
     }
