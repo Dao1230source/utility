@@ -9,10 +9,7 @@ import org.source.utility.utils.Jsons;
 import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -21,13 +18,21 @@ import java.util.function.Function;
 public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNode<I, E, N>> implements Node<I, E, N> {
     private E element;
     private N parent;
-    private List<N> children;
+    @JsonIgnore
+    private transient List<N> children;
     @JsonIgnore
     private transient Map<I, Integer> indexMap;
+
+    public void addChild(N child) {
+        this.addChild(child, true);
+    }
 
     public void addChild(N child, boolean keepOldIndex) {
         if (Objects.isNull(this.children)) {
             this.children = new ArrayList<>(16);
+        }
+        if (Objects.isNull(indexMap)) {
+            indexMap = HashMap.newHashMap(16);
         }
         Integer i = indexMap.get(child.getId());
         if (Objects.nonNull(i) && keepOldIndex) {
@@ -110,6 +115,12 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
         return cast(node, mapper, parentIdSetter, null, null);
     }
 
+    /**
+     * 只比较element
+     *
+     * @param o other
+     * @return boolean
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -119,12 +130,12 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
             return false;
         }
         AbstractNode<?, ?, ?> that = (AbstractNode<?, ?, ?>) o;
-        return Objects.equals(getElement(), that.getElement()) && Objects.equals(getChildren(), that.getChildren());
+        return Objects.equals(getElement(), that.getElement());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getElement(), getChildren());
+        return Objects.hash(getElement());
     }
 
     @Override
