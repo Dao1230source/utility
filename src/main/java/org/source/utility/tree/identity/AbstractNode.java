@@ -33,16 +33,21 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
         }
         if (Objects.isNull(indexMap)) {
             indexMap = HashMap.newHashMap(16);
+            if (!CollectionUtils.isEmpty(children)) {
+                for (int i = 0; i < this.children.size(); i++) {
+                    this.indexMap.put(this.children.get(i).getId(), i);
+                }
+            }
         }
         Integer i = indexMap.get(child.getId());
-        if (Objects.nonNull(i) && keepOldIndex) {
+        if (Objects.nonNull(i) && i < this.children.size()) {
             ((ArrayList<?>) this.children).remove(i);
-            this.children.add(i, child);
-            this.indexMap.put(child.getId(), i);
-        } else {
-            this.children.add(child);
-            this.indexMap.put(child.getId(), i);
         }
+        if (!keepOldIndex) {
+            i = this.children.size();
+        }
+        this.children.add(i, child);
+        this.indexMap.put(child.getId(), i);
     }
 
     public I getId() {
