@@ -40,10 +40,12 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
             }
         }
         Integer i = indexMap.get(child.getId());
-        if (Objects.nonNull(i) && i < this.children.size()) {
+        if (Objects.nonNull(i)) {
             ((ArrayList<?>) this.children).remove(i);
-        }
-        if (!keepOldIndex) {
+            if (!keepOldIndex) {
+                i = this.children.size();
+            }
+        } else {
             i = this.children.size();
         }
         this.children.add(i, child);
