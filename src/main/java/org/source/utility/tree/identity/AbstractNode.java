@@ -9,7 +9,10 @@ import org.source.utility.utils.Jsons;
 import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -20,8 +23,6 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
     private N parent;
     @JsonIgnore
     private transient List<N> children;
-    @JsonIgnore
-    private transient Map<I, Integer> indexMap;
 
     public void addChild(N child) {
         this.addChild(child, true);
@@ -31,25 +32,15 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
         if (Objects.isNull(this.children)) {
             this.children = new ArrayList<>(16);
         }
-        if (Objects.isNull(indexMap)) {
-            indexMap = HashMap.newHashMap(16);
-            if (!CollectionUtils.isEmpty(children)) {
-                for (int i = 0; i < this.children.size(); i++) {
-                    this.indexMap.put(this.children.get(i).getId(), i);
-                }
+        int i = this.children.indexOf(child);
+        if (i >= 0) {
+            this.children.remove(i);
+            if (keepOldIndex) {
+                this.children.add(i, child);
+                return;
             }
-        }
-        Integer i = indexMap.get(child.getId());
-        if (Objects.nonNull(i)) {
-            ((ArrayList<?>) this.children).remove(i);
-            if (!keepOldIndex) {
-                i = this.children.size();
-            }
-        } else {
-            i = this.children.size();
         }
         this.children.add(i, child);
-        this.indexMap.put(child.getId(), i);
     }
 
     public I getId() {

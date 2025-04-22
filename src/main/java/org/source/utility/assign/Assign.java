@@ -40,6 +40,8 @@ public class Assign<E> {
      */
     private final List<Consumer<Collection<E>>> subs;
 
+    private final List<ClassifyInvoker<E, ?>> classifyInvokers;
+
     private String name;
     /**
      * 多线程执行器
@@ -69,6 +71,7 @@ public class Assign<E> {
             this.superAssign.branches.add(this);
         }
         this.subs = new ArrayList<>();
+        this.classifyInvokers = new ArrayList<>();
     }
 
     public Assign(Collection<E> mainData) {
@@ -167,6 +170,12 @@ public class Assign<E> {
         return this;
     }
 
+    @SafeVarargs
+    public final <K> Assign<E> addClassifyInvoker(Function<E, K> classifier, ClassifyInvoker.KeyAssigner<E, K>... keyAssigner) {
+        this.classifyInvokers.add(ClassifyInvoker.<E, K>builder().classifier(classifier).keyAssigners(List.of(keyAssigner)).build());
+        return this;
+    }
+
     @SuppressWarnings("unchecked")
     public Assign<E> backSuper() {
         Assign<E> assign = this.superAssign;
@@ -197,6 +206,7 @@ public class Assign<E> {
     }
 
     public Assign<E> invoke() {
+        this.parseClassifyInvokers();
         if (Objects.nonNull(this.superAssign)) {
             if (InvokeStatusEnum.CREATED.equals(this.superAssign.status)) {
                 this.superAssign.invoke();
@@ -249,6 +259,24 @@ public class Assign<E> {
             this.acquires.forEach(a -> a.fetch(this.mainData));
         }
         this.mainData.forEach(e -> this.acquires.forEach(a -> a.invoke(e)));
+    }
+
+    private void parseClassifyInvokers() {
+        if (CollectionUtils.isEmpty(this.classifyInvokers)) {
+            return;
+        }
+        this.classifyInvokers.forEach(c -> {
+            Map<?, List<E>> keyMap = Streams.groupBy(this.mainData, c.getClassifier());
+            Map<?, Function<Collection<E>, Assign<E>>> map = Streams.toMap(c.getKeyAssigners(),
+                    ClassifyInvoker.KeyAssigner::getKey, ClassifyInvoker.KeyAssigner::getAssign);
+            map.forEach((k, v) -> {
+                List<E> list = keyMap.get(k);
+                if (CollectionUtils.isEmpty(list)) {
+                    return;
+                }
+                this.addSub(es -> v.apply(list));
+            });
+        });
     }
 
     public static <E> Assign<E> build(Collection<E> mainData) {
