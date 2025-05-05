@@ -29,7 +29,6 @@ public class Assign<E> {
     private final int depth;
     private final List<Acquire<E, ?, ?>> acquires;
     private final List<Consumer<E>> assignValues;
-    private final Assign<E> superAssign;
     /**
      * 分支：分支和主体有关联关系，可以通过 backSuper() 等方法返回
      */
@@ -40,7 +39,7 @@ public class Assign<E> {
      */
     private final List<Consumer<Collection<E>>> subs;
 
-    private final List<ClassifyInvoker<E, ?>> classifyInvokers;
+    private Assign<E> superAssign;
 
     private String name;
     /**
@@ -71,7 +70,6 @@ public class Assign<E> {
             this.superAssign.branches.add(this);
         }
         this.subs = new ArrayList<>();
-        this.classifyInvokers = new ArrayList<>();
     }
 
     public Assign(Collection<E> mainData) {
@@ -165,14 +163,32 @@ public class Assign<E> {
         return new Assign<>(this);
     }
 
-    public Assign<E> addSub(Consumer<Collection<E>> sub) {
-        this.subs.add(sub);
+    public <K> Assign<E> addBranches(Function<E, K> keyGetter, Map<K, Function<Collection<E>, Assign<E>>> keyAssigners) {
+        Map<K, List<E>> keyMap = Streams.groupBy(this.mainData, keyGetter);
+        Map<Function<Collection<E>, Assign<E>>, List<E>> assignerDataMap = HashMap.newHashMap(keyMap.size());
+        keyAssigners.forEach((k, consumer) -> {
+            List<E> es = keyMap.get(k);
+            if (CollectionUtils.isEmpty(es)) {
+                return;
+            }
+            assignerDataMap.compute(consumer, (a, l) -> {
+                if (CollectionUtils.isEmpty(l)) {
+                    l = new ArrayList<>();
+                }
+                l.addAll(es);
+                return l;
+            });
+        });
+        assignerDataMap.forEach((f, l) -> {
+            Assign<E> assign = f.apply(l);
+            assign.superAssign = this;
+            this.branches.add(assign);
+        });
         return this;
     }
 
-    @SafeVarargs
-    public final <K> Assign<E> addClassifyInvoker(Function<E, K> classifier, ClassifyInvoker.KeyAssigner<E, K>... keyAssigner) {
-        this.classifyInvokers.add(ClassifyInvoker.<E, K>builder().classifier(classifier).keyAssigners(List.of(keyAssigner)).build());
+    public Assign<E> addSub(Consumer<Collection<E>> sub) {
+        this.subs.add(sub);
         return this;
     }
 
@@ -206,7 +222,6 @@ public class Assign<E> {
     }
 
     public Assign<E> invoke() {
-        this.parseClassifyInvokers();
         if (Objects.nonNull(this.superAssign)) {
             if (InvokeStatusEnum.CREATED.equals(this.superAssign.status)) {
                 this.superAssign.invoke();
@@ -235,12 +250,8 @@ public class Assign<E> {
             log.debug("assign end, interruptStrategy:{}", this.interruptStrategy);
             return this;
         }
-        this.branches.forEach(b -> {
-            if (InvokeStatusEnum.CREATED.equals(b.status)) {
-                b.invoke();
-            }
-        });
-        this.subs.forEach(sub -> sub.accept(this.mainData));
+        this.invokeBranches();
+        this.invokeSubs();
         return this;
     }
 
@@ -261,22 +272,35 @@ public class Assign<E> {
         this.mainData.forEach(e -> this.acquires.forEach(a -> a.invoke(e)));
     }
 
-    private void parseClassifyInvokers() {
-        if (CollectionUtils.isEmpty(this.classifyInvokers)) {
-            return;
+    private void invokeBranches() {
+        if (Objects.nonNull(this.executor)) {
+            try {
+                List<? extends CompletableFuture<? extends Assign<?>>> completableFutureList = this.branches.stream()
+                        .filter(b -> InvokeStatusEnum.CREATED.equals(b.status))
+                        .map(a -> CompletableFuture.supplyAsync(a::invoke, this.executor))
+                        .toList();
+                CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
+            } catch (Exception e) {
+                log.error("Assign parallel execute branches exception", e);
+            }
+        } else {
+            this.branches.stream().filter(b -> InvokeStatusEnum.CREATED.equals(b.status)).forEach(Assign::invoke);
         }
-        this.classifyInvokers.forEach(c -> {
-            Map<?, List<E>> keyMap = Streams.groupBy(this.mainData, c.getClassifier());
-            Map<?, Function<Collection<E>, Assign<E>>> map = Streams.toMap(c.getKeyAssigners(),
-                    ClassifyInvoker.KeyAssigner::getKey, ClassifyInvoker.KeyAssigner::getAssign);
-            map.forEach((k, v) -> {
-                List<E> list = keyMap.get(k);
-                if (CollectionUtils.isEmpty(list)) {
-                    return;
-                }
-                this.addSub(es -> v.apply(list));
-            });
-        });
+    }
+
+    private void invokeSubs() {
+        if (Objects.nonNull(this.executor)) {
+            try {
+                List<CompletableFuture<Void>> completableFutureList = this.subs.stream()
+                        .map(a -> CompletableFuture.runAsync(() -> a.accept(this.mainData), this.executor))
+                        .toList();
+                CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
+            } catch (Exception e) {
+                log.error("Assign parallel execute subs exception", e);
+            }
+        } else {
+            this.subs.forEach(s -> s.accept(this.mainData));
+        }
     }
 
     public static <E> Assign<E> build(Collection<E> mainData) {
