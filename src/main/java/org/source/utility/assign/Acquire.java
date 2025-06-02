@@ -32,7 +32,6 @@ public class Acquire<E, K, T> {
     private Throwable throwable;
     private Integer batchSize;
 
-
     public Acquire(Assign<E> assign, Function<Collection<K>, Map<K, T>> fetcher) {
         this.assign = assign;
         this.fetcher = fetcher;

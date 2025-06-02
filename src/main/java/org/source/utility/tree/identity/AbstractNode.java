@@ -32,14 +32,16 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
         if (Objects.isNull(this.children)) {
             this.children = new ArrayList<>(16);
         }
-        int i = this.children.indexOf(child);
-        if (i >= 0) {
-            this.children.remove(i);
-            if (keepOldIndex) {
-                this.children.add(i, child);
-                return;
-            }
+        if (!keepOldIndex) {
+            this.children.add(child);
+            return;
         }
+        int i = this.children.indexOf(child);
+        if (i < 0) {
+            this.children.add(child);
+            return;
+        }
+        this.children.remove(i);
         this.children.add(i, child);
     }
 
