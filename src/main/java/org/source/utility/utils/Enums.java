@@ -20,7 +20,7 @@ public class Enums {
 
     private static final Map<String, Map<Object, Enum<?>>> ENUM_MAP = new ConcurrentHashMap<>(32);
 
-    public static <E extends Enum<E>, K> Map<Object, Enum<?>> enumMapByKey(Class<E> enumClass, SFunction<E, K> keyGetter) {
+    public static <E extends Enum<E>, K> Map<Object, Enum<?>> enumToMap(Class<E> enumClass, SFunction<E, K> keyGetter) {
         if (Objects.isNull(enumClass) || Objects.isNull(keyGetter)) {
             return Map.of();
         }
@@ -43,20 +43,20 @@ public class Enums {
     }
 
     @SuppressWarnings("unchecked")
-    public static <E extends Enum<E>, K> Map<K, E> genericEnumMapByKey(Class<E> enumClass, SFunction<E, K> keyGetter) {
-        Map<Object, Enum<?>> map = enumMapByKey(enumClass, keyGetter);
+    public static <E extends Enum<E>, K> Map<K, E> toMap(Class<E> enumClass, SFunction<E, K> keyGetter) {
+        Map<Object, Enum<?>> map = enumToMap(enumClass, keyGetter);
         Map<K, E> genericMap = new ConcurrentHashMap<>(map.size());
         map.forEach((k, v) -> genericMap.put((K) k, (E) v));
         return genericMap;
     }
 
     @SuppressWarnings("unchecked")
-    public static <E extends Enum<E>, K, V> Map<K, V> genericEnumMapByKey(Class<E> enumClass, SFunction<E, K> keyGetter,
-                                                                          SFunction<E, V> valueGetter) {
+    public static <E extends Enum<E>, K, V> Map<K, V> toMap(Class<E> enumClass, SFunction<E, K> keyGetter,
+                                                            SFunction<E, V> valueGetter) {
         if (Objects.isNull(valueGetter)) {
             return Map.of();
         }
-        Map<Object, Enum<?>> map = enumMapByKey(enumClass, keyGetter);
+        Map<Object, Enum<?>> map = enumToMap(enumClass, keyGetter);
         Map<K, V> genericMap = new ConcurrentHashMap<>(map.size());
         map.forEach((k, v) -> genericMap.put((K) k, valueGetter.apply((E) v)));
         return genericMap;
@@ -69,7 +69,7 @@ public class Enums {
         if (Objects.isNull(k)) {
             return null;
         }
-        return (E) enumMapByKey(enumClass, keyGetter).get(k);
+        return (E) enumToMap(enumClass, keyGetter).get(k);
     }
 
     public static <E extends Enum<E>, K, V> V getValue(Class<E> enumClass,

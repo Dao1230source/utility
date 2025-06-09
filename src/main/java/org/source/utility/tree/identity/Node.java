@@ -1,6 +1,7 @@
 package org.source.utility.tree.identity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.springframework.util.CollectionUtils;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -64,6 +65,31 @@ public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> extends 
             current = current.getParent();
             list.add(current);
         }
+        return list;
+    }
+
+
+    /**
+     * 递归查询所有子节点
+     *
+     * @param node node
+     * @param <I>  I
+     * @param <E>  E
+     * @param <N>  Node
+     */
+    static <I, E extends Element<I>, N extends Node<I, E, N>> List<N> recursiveChildren(N node, boolean includeItself) {
+        List<N> list = new ArrayList<>();
+        if (Objects.isNull(node)) {
+            return list;
+        }
+        if (includeItself) {
+            list.add(node);
+        }
+        if (CollectionUtils.isEmpty(node.getChildren())) {
+            return list;
+        }
+        list.addAll(node.getChildren());
+        node.getChildren().forEach(n -> list.addAll(recursiveChildren(n, includeItself)));
         return list;
     }
 }

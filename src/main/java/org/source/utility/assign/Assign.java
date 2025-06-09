@@ -45,6 +45,7 @@ public class Assign<E> {
     /**
      * 多线程执行器
      */
+    @Nullable
     @Getter
     private Executor executor;
     /**
@@ -65,6 +66,7 @@ public class Assign<E> {
         this.name = String.valueOf(this.hashCode());
         this.interruptStrategy = InterruptStrategyEnum.ANY;
         this.status = InvokeStatusEnum.CREATED;
+        this.executor = null;
         this.branches = new ArrayList<>();
         if (Objects.nonNull(this.superAssign)) {
             this.superAssign.branches.add(this);
@@ -81,7 +83,7 @@ public class Assign<E> {
     }
 
     public <K, T> Acquire<E, K, T> addAcquire(Function<Collection<K>, Map<K, T>> fetcher) {
-        Acquire<E, K, T> acquire = new Acquire<>(this, fetcher);
+        Acquire<E, K, T> acquire = new Acquire<>(this, fetcher, null);
         this.acquires.add(acquire);
         return acquire;
     }
@@ -97,7 +99,14 @@ public class Assign<E> {
     public <K, T> Acquire<E, K, T> addAcquire(Function<Collection<K>, Collection<T>> fetcher,
                                               Function<T, K> keyGetter) {
         Function<Collection<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.apply(ks), keyGetter);
-        Acquire<E, K, T> acquire = new Acquire<>(this, mapFetcher);
+        Acquire<E, K, T> acquire = new Acquire<>(this, mapFetcher, null);
+        this.acquires.add(acquire);
+        return acquire;
+    }
+
+
+    public <K, T> Acquire<E, K, T> addAcquire4Single(Function<K, T> fetcher) {
+        Acquire<E, K, T> acquire = new Acquire<>(this, null, fetcher);
         this.acquires.add(acquire);
         return acquire;
     }

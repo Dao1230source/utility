@@ -3,14 +3,17 @@ package org.source.utility.assign;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
+import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.utils.Jsons;
 import org.source.utility.utils.Streams;
+import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -20,9 +23,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class Acquire<E, K, T> {
     private static final Map<String, Cache<Object, Object>> CACHE_MAP = new ConcurrentHashMap<>(16);
-    private final Function<Collection<K>, Map<K, T>> fetcher;
     private final Assign<E> assign;
     private final List<Action<E, K, T>> actions;
+    private final Function<Collection<K>, Map<K, T>> batchFetcher;
+    private final Function<K, T> fetcher;
 
     private Map<K, T> ktMap;
     private Supplier<Cache<K, T>> cacherSupplier;
@@ -32,8 +36,14 @@ public class Acquire<E, K, T> {
     private Throwable throwable;
     private Integer batchSize;
 
-    public Acquire(Assign<E> assign, Function<Collection<K>, Map<K, T>> fetcher) {
+    public Acquire(Assign<E> assign,
+                   @Nullable Function<Collection<K>, Map<K, T>> batchFetcher,
+                   @Nullable Function<K, T> fetcher) {
+        if (Objects.isNull(batchFetcher) && Objects.isNull(fetcher)) {
+            throw BaseExceptionEnum.NOT_NULL.except("batchFetcher和fetcher至少有一个不为空");
+        }
         this.assign = assign;
+        this.batchFetcher = batchFetcher;
         this.fetcher = fetcher;
         this.actions = new ArrayList<>();
     }
@@ -126,17 +136,44 @@ public class Acquire<E, K, T> {
                 @SuppressWarnings("unchecked")
                 Cache<K, T> cache = (Cache<K, T>) CACHE_MAP.computeIfAbsent(this.name,
                         k -> (Cache<Object, Object>) this.cacherSupplier.get());
-                Map<K, T> cachedMap = cache.getAll(ks, keys -> this.fetcher.apply(ks));
+                @SuppressWarnings("unchecked")
+                Map<K, T> cachedMap = cache.getAll(ks, keys -> this.get((Set<K>) keys));
                 log.info("fetch data from cache");
                 return cachedMap;
             } else {
-                return this.fetcher.apply(ks);
+                return this.get(ks);
             }
         } catch (Exception e) {
             log.error("Assign.Acquire getFromCache except", e);
             this.throwable = e;
             return Map.of();
         }
+    }
+
+    private Map<K, T> get(Set<K> ks) {
+        if (CollectionUtils.isEmpty(ks)) {
+            return Map.of();
+        }
+        if (Objects.nonNull(this.batchFetcher)) {
+            return this.batchFetcher.apply(ks);
+        } else if (Objects.nonNull(this.fetcher)) {
+            Map<K, T> result = HashMap.newHashMap(ks.size());
+            if (Objects.nonNull(this.assign) && Objects.nonNull(this.assign.getExecutor())) {
+                Map<K, CompletableFuture<T>> map = Streams.toMap(ks, Function.identity(),
+                        k -> CompletableFuture.supplyAsync(() -> this.fetcher.apply(k), this.assign.getExecutor()));
+                map.forEach((k, v) -> {
+                    try {
+                        result.put(k, v.get());
+                    } catch (InterruptedException | ExecutionException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("Acquire parallel execute fetcher exception", e);
+                    }
+                });
+            } else {
+                ks.forEach(k -> result.put(k, this.fetcher.apply(k)));
+            }
+        }
+        return Map.of();
     }
 
     void invoke(E e) {
