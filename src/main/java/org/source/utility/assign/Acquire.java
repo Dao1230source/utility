@@ -23,6 +23,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class Acquire<E, K, T> {
     private static final Map<String, Cache<Object, Object>> CACHE_MAP = new ConcurrentHashMap<>(16);
+    private final BiConsumer<E, Throwable> defaultExceptionHandler =
+            (e, ex) -> BaseExceptionEnum.ASSIGN_ACQUIRE_RUN_EXCEPTION.except(ex);
     private final Assign<E> assign;
     private final List<Action<E, K, T>> actions;
     private final Function<Collection<K>, Map<K, T>> batchFetcher;
@@ -34,6 +36,7 @@ public class Acquire<E, K, T> {
     private BiConsumer<E, Map<K, T>> afterProcessor;
     private BiConsumer<E, Throwable> exceptionHandler;
     private Throwable throwable;
+    private boolean throwException = false;
     private Integer batchSize;
 
     public Acquire(Assign<E> assign,
@@ -75,6 +78,11 @@ public class Acquire<E, K, T> {
 
     public Acquire<E, K, T> exceptionHandler(BiConsumer<E, Throwable> exceptionHandler) {
         this.exceptionHandler = exceptionHandler;
+        return this;
+    }
+
+    public Acquire<E, K, T> throwException() {
+        this.throwException = true;
         return this;
     }
 
@@ -185,8 +193,15 @@ public class Acquire<E, K, T> {
 
     private void after(E e) {
         if (Objects.nonNull(this.throwable)) {
+            BiConsumer<E, Throwable> handler = null;
+            if (throwException) {
+                handler = defaultExceptionHandler;
+            }
             if (Objects.nonNull(this.exceptionHandler)) {
-                this.exceptionHandler.accept(e, this.throwable);
+                handler = Objects.nonNull(handler) ? this.exceptionHandler.andThen(handler) : handler;
+            }
+            if (Objects.nonNull(handler)) {
+                handler.accept(e, this.throwable);
             }
         } else {
             if (Objects.nonNull(this.afterProcessor)) {
@@ -196,6 +211,6 @@ public class Acquire<E, K, T> {
     }
 
     public boolean isSuccess() {
-        return Objects.isNull(this.ktMap) || Objects.isNull(this.throwable);
+        return Objects.isNull(this.throwable);
     }
 }

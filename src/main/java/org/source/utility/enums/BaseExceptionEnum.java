@@ -62,7 +62,11 @@ public enum BaseExceptionEnum implements EnumProcessor<BaseException> {
     /**
      * spring utility
      */
-    GET_IP_PORT_FAIL("获取IP或Port失败");
+    GET_IP_PORT_FAIL("获取IP或Port失败"),
+    /**
+     * assign exception
+     */
+    ASSIGN_ACQUIRE_RUN_EXCEPTION("assign acquire exception");
 
     private final String message;
 

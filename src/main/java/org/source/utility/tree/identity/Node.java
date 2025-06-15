@@ -7,9 +7,14 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> extends Comparable<N>, Serializable {
+    E getElement();
+
+    void setElement(E element);
+
     /**
      * getParent
      *
@@ -27,19 +32,19 @@ public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> extends 
 
     /**
      * getProperty
-     *
-     * @param e      e
-     * @param getter getter
-     * @param <I>    I
-     * @param <E>    E
-     * @param <V>    V
-     * @return V
      */
-    static <I, E extends Element<I>, V> V getProperty(E e, Function<E, V> getter) {
-        if (Objects.isNull(e) || Objects.isNull(getter)) {
+    static <I, E extends Element<I>, N extends Node<I, E, N>, V> V getProperty(Node<I, E, N> n, Function<E, V> getter) {
+        if (Objects.isNull(n) || Objects.isNull(n.getElement()) || Objects.isNull(getter)) {
             return null;
         }
-        return getter.apply(e);
+        return getter.apply(n.getElement());
+    }
+
+    static <I, E extends Element<I>, N extends Node<I, E, N>, V> void setProperty(Node<I, E, N> n, BiConsumer<E, V> setter, V value) {
+        if (Objects.isNull(n) || Objects.isNull(n.getElement()) || Objects.isNull(setter)) {
+            return;
+        }
+        setter.accept(n.getElement(), value);
     }
 
     /**

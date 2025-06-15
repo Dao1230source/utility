@@ -65,7 +65,7 @@ public class Jsons {
         try {
             return MAPPER.writeValueAsString(obj);
         } catch (JsonProcessingException e) {
-            throw BaseExceptionEnum.JSON_OBJECT_2_STRING_EXCEPTION.except();
+            throw BaseExceptionEnum.JSON_OBJECT_2_STRING_EXCEPTION.except(e);
         }
     }
 
@@ -76,7 +76,7 @@ public class Jsons {
         try {
             return MAPPER.writeValueAsBytes(obj);
         } catch (JsonProcessingException e) {
-            throw BaseExceptionEnum.JSON_OBJECT_2_STRING_EXCEPTION.except();
+            throw BaseExceptionEnum.JSON_OBJECT_2_STRING_EXCEPTION.except(e);
         }
     }
 
@@ -84,7 +84,7 @@ public class Jsons {
         try {
             return MAPPER.readValue(jsonStr, javaType);
         } catch (JsonProcessingException e) {
-            throw BaseExceptionEnum.JSON_STRING_2_OBJECT_EXCEPTION.except();
+            throw BaseExceptionEnum.JSON_STRING_2_OBJECT_EXCEPTION.except(e);
         }
     }
 
@@ -95,7 +95,7 @@ public class Jsons {
         try {
             return MAPPER.readValue(bytes, valueType);
         } catch (IOException e) {
-            throw BaseExceptionEnum.JSON_STRING_2_OBJECT_EXCEPTION.except();
+            throw BaseExceptionEnum.JSON_STRING_2_OBJECT_EXCEPTION.except(e);
         }
     }
 

@@ -1,7 +1,7 @@
 package org.source.utility.tree;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import lombok.Getter;
+import lombok.Data;
 import org.source.utility.tree.identity.AbstractNode;
 import org.source.utility.tree.identity.Element;
 import org.source.utility.utils.Streams;
@@ -12,7 +12,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.*;
 
-@Getter
+@Data
 public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
     @JsonIgnore
     private final Map<I, N> idMap = new ConcurrentHashMap<>(32);
@@ -22,28 +22,26 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
     private final Consumer<N> elementHandler;
     private final N root;
 
+    private boolean keepOldIndex = false;
+    private @Nullable Consumer<N> afterCreateHandler;
+    private @Nullable BinaryOperator<N> mergeHandler;
+    private @Nullable BiConsumer<N, N> finallyHandler;
+    private Function<N, I> idGetter = N::getId;
+    private Function<N, I> parentIdGetter = N::getParentId;
+
     public Tree(Supplier<N> newInstance, Consumer<N> elementHandler) {
         this.newInstance = newInstance;
         this.elementHandler = elementHandler;
         this.root = newInstance.get();
     }
 
-    public N add(Collection<? extends E> es) {
-        return add(es, true, null, null, null);
-    }
-
     /**
      * 新增元素
      *
-     * @param es               es
-     * @param updateOldHandler {@literal <new,old>}用新数据更新旧数据，为null时id重复不更新
+     * @param es es
      * @return node
      */
-    public N add(Collection<? extends E> es,
-                 boolean keepOldIndex,
-                 @Nullable Consumer<N> afterCreateHandler,
-                 @Nullable BinaryOperator<N> updateOldHandler,
-                 @Nullable Consumer<N> finallyHandler) {
+    public N add(Collection<? extends E> es) {
         if (CollectionUtils.isEmpty(es)) {
             return root;
         }
@@ -54,24 +52,24 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
                 afterCreateHandler.accept(n);
             }
             return n;
-        }).forEach(n -> this.idMap.compute(n.getId(), (k, old) -> {
+        }).forEach(n -> this.idMap.compute(idGetter.apply(n), (k, old) -> {
             // 默认使用新的
             N result = n;
             // 如有更新处理器
-            if (Objects.nonNull(updateOldHandler)) {
-                result = updateOldHandler.apply(n, old);
+            if (Objects.nonNull(mergeHandler)) {
+                result = mergeHandler.apply(n, old);
             }
-            this.addChild(result, keepOldIndex);
+            N parent = this.addChild(result, keepOldIndex);
             if (Objects.nonNull(finallyHandler)) {
-                finallyHandler.accept(result);
+                finallyHandler.accept(result, parent);
             }
             return result;
         }));
         return root;
     }
 
-    private void addChild(N n, boolean keepOldIndex) {
-        I parentId = n.getParentId();
+    private N addChild(N n, boolean keepOldIndex) {
+        I parentId = parentIdGetter.apply(n);
         N parent;
         if (Objects.isNull(parentId)) {
             parent = root;
@@ -84,6 +82,7 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
         parent.addChild(n, keepOldIndex);
         n.setParent(parent);
         this.elementHandler.accept(n);
+        return parent;
     }
 
     public List<N> find(Predicate<N> predicate) {

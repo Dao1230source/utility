@@ -46,11 +46,11 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
     }
 
     public I getId() {
-        return Node.getProperty(this.element, Element::getId);
+        return Node.getProperty(this, Element::getId);
     }
 
     public I getParentId() {
-        return Node.getProperty(this.element, Element::getParentId);
+        return Node.getProperty(this, Element::getParentId);
     }
 
     public abstract <J, F extends Element<J>, O extends AbstractNode<J, F, O>> O emptyNode();
