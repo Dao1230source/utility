@@ -187,26 +187,32 @@ public class Acquire<E, K, T> {
     void invoke(E e) {
         if (this.isSuccess()) {
             this.actions.forEach(k -> k.invoke(e, this.ktMap));
-            this.after(e);
         }
+        this.after(e);
     }
 
     private void after(E e) {
+        this.handleException(e);
+        this.handleAfter(e);
+    }
+
+    private void handleException(E e) {
         if (Objects.nonNull(this.throwable)) {
-            BiConsumer<E, Throwable> handler = null;
+            BiConsumer<E, Throwable> handler = (ele, ex) -> {
+            };
             if (throwException) {
-                handler = defaultExceptionHandler;
+                handler = handler.andThen(defaultExceptionHandler);
             }
             if (Objects.nonNull(this.exceptionHandler)) {
-                handler = Objects.nonNull(handler) ? this.exceptionHandler.andThen(handler) : handler;
+                handler = this.exceptionHandler.andThen(handler);
             }
-            if (Objects.nonNull(handler)) {
-                handler.accept(e, this.throwable);
-            }
-        } else {
-            if (Objects.nonNull(this.afterProcessor)) {
-                this.afterProcessor.accept(e, this.ktMap);
-            }
+            handler.accept(e, this.throwable);
+        }
+    }
+
+    private void handleAfter(E e) {
+        if (Objects.nonNull(this.afterProcessor)) {
+            this.afterProcessor.accept(e, this.ktMap);
         }
     }
 

@@ -21,7 +21,6 @@ import java.util.function.Function;
 public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNode<I, E, N>> implements Node<I, E, N> {
     private E element;
     private N parent;
-    @JsonIgnore
     private transient List<N> children;
 
     public void addChild(N child) {
