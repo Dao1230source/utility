@@ -23,8 +23,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class Acquire<E, K, T> {
     private static final Map<String, Cache<Object, Object>> CACHE_MAP = new ConcurrentHashMap<>(16);
-    private final BiConsumer<E, Throwable> defaultExceptionHandler =
-            (e, ex) -> BaseExceptionEnum.ASSIGN_ACQUIRE_RUN_EXCEPTION.except(ex);
+    private final BiConsumer<E, Throwable> defaultExceptionHandler = (e, ex) -> {
+        throw BaseExceptionEnum.ASSIGN_ACQUIRE_RUN_EXCEPTION.except(ex);
+    };
     private final Assign<E> assign;
     private final List<Action<E, K, T>> actions;
     private final Function<Collection<K>, Map<K, T>> batchFetcher;

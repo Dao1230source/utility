@@ -1,6 +1,5 @@
 package org.source.utility.tree.identity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -144,6 +143,6 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
 
     @Override
     public String toString() {
-        return Jsons.str(this);
+        return "{\"element\":" + Jsons.str(this.getElement()) + "}";
     }
 }
