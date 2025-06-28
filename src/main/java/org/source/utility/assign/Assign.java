@@ -15,6 +15,7 @@ import java.util.function.*;
 
 @Slf4j
 public class Assign<E> {
+    private static final int ROOT_DEPTH = 1;
     private static final Assign<?> EMPTY = Assign.build(List.of());
     private static final int PROCESSORS = Runtime.getRuntime().availableProcessors();
     private static final ExecutorService DEFAULT_EXECUTE = Objects.requireNonNull(TtlExecutors.getTtlExecutorService(
@@ -75,11 +76,11 @@ public class Assign<E> {
     }
 
     public Assign(Collection<E> mainData) {
-        this(mainData, 1, null);
+        this(mainData, ROOT_DEPTH, null);
     }
 
     public Assign(Assign<E> superAssign) {
-        this(superAssign.mainData, superAssign.depth + 1, superAssign);
+        this(superAssign.mainData, superAssign.depth + ROOT_DEPTH, superAssign);
     }
 
     public <K, T> Acquire<E, K, T> addAcquire(Function<Collection<K>, Map<K, T>> fetcher) {
@@ -212,7 +213,7 @@ public class Assign<E> {
 
     @SuppressWarnings("unchecked")
     public Assign<E> backSuperTo(int depth) {
-        if (depth < 1 || depth >= this.depth) {
+        if (depth < ROOT_DEPTH || depth >= this.depth) {
             return (Assign<E>) EMPTY;
         }
         Assign<E> assign = this.backSuper();
@@ -223,11 +224,23 @@ public class Assign<E> {
     }
 
     public Assign<E> backSuperlative() {
-        return backSuperTo(1);
+        return backSuperTo(ROOT_DEPTH);
     }
 
-    public List<E> getMainData2List() {
+    public void forEach(Consumer<E> consumer) {
+        this.mainData.forEach(consumer);
+    }
+
+    public List<E> toList() {
         return new ArrayList<>(this.mainData);
+    }
+
+    public <F> Assign<F> cast(Function<E, F> mapping) {
+        return new Assign<>(Streams.map(this.mainData, mapping).filter(Objects::nonNull).toList());
+    }
+
+    public <F> Assign<F> casts(Function<Collection<E>, Collection<F>> mapping) {
+        return new Assign<>(mapping.apply(this.mainData));
     }
 
     public Assign<E> invoke() {
