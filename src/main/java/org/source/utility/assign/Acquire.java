@@ -103,7 +103,7 @@ public class Acquire<E, K, T> {
     }
 
     Map<K, T> fetch(Collection<E> mainData) {
-        log.info("fetching main data, name:{}", name);
+        log.info("Acquire name:{}", name);
         if (Objects.nonNull(this.ktMap)) {
             return this.ktMap;
         }

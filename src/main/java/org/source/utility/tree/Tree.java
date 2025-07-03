@@ -45,26 +45,29 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
         if (CollectionUtils.isEmpty(es)) {
             return root;
         }
-        es.stream().map(e -> {
+        List<N> nodes = es.stream().map(e -> {
             N n = this.newInstance.get();
             n.setElement(e);
             if (Objects.nonNull(afterCreateHandler)) {
                 afterCreateHandler.accept(n);
             }
             return n;
-        }).forEach(n -> this.idMap.compute(idGetter.apply(n), (k, old) -> {
+        }).toList();
+        nodes.forEach(n -> this.idMap.compute(idGetter.apply(n), (k, old) -> {
             // 默认使用新的
             N result = n;
             // 如有更新处理器
             if (Objects.nonNull(mergeHandler)) {
                 result = mergeHandler.apply(n, old);
             }
-            N parent = this.addChild(result, keepOldIndex);
-            if (Objects.nonNull(finallyHandler)) {
-                finallyHandler.accept(result, parent);
-            }
             return result;
         }));
+        nodes.forEach(n -> {
+            N parent = this.addChild(n, keepOldIndex);
+            if (Objects.nonNull(finallyHandler)) {
+                finallyHandler.accept(n, parent);
+            }
+        });
         return root;
     }
 

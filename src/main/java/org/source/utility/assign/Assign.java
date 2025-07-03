@@ -3,7 +3,7 @@ package org.source.utility.assign;
 import com.alibaba.ttl.threadpool.TtlExecutors;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.Unmodifiable;
+import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.utils.Streams;
 import org.springframework.lang.Nullable;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
@@ -25,8 +25,8 @@ public class Assign<E> {
     /**
      * 集合不可修改，只可以更新集合对象的值
      */
-    @Unmodifiable
-    private final Collection<E> mainData;
+    private Collection<E> mainData;
+    private final Predicate<E> filter;
     private final int depth;
     private final List<Acquire<E, ?, ?>> acquires;
     private final List<Consumer<E>> assignValues;
@@ -34,9 +34,9 @@ public class Assign<E> {
      * 分支：分支和主体有关联关系，可以通过 backSuper() 等方法返回
      */
     private final List<Assign<E>> branches;
-
     /**
      * 子赋值程序，和主体是不相关的，对子体的mainData的引用修改不会影响主体，但子体中对 E 值的修改会影响主体
+     * 比如将 E 转换成 其他类型并做一些操作等
      */
     private final List<Consumer<Collection<E>>> subs;
 
@@ -58,8 +58,8 @@ public class Assign<E> {
      */
     private InterruptStrategyEnum interruptStrategy;
 
-    public Assign(Collection<E> mainData, int depth, @Nullable Assign<E> superAssign) {
-        this.mainData = Collections.unmodifiableCollection(mainData);
+    public Assign(Collection<E> mainData, int depth, @Nullable Assign<E> superAssign, @Nullable Predicate<E> filter) {
+        this.mainData = List.copyOf(mainData);
         this.depth = depth;
         this.superAssign = superAssign;
         this.acquires = new ArrayList<>();
@@ -72,15 +72,16 @@ public class Assign<E> {
         if (Objects.nonNull(this.superAssign)) {
             this.superAssign.branches.add(this);
         }
+        this.filter = filter;
         this.subs = new ArrayList<>();
     }
 
     public Assign(Collection<E> mainData) {
-        this(mainData, ROOT_DEPTH, null);
+        this(mainData, ROOT_DEPTH, null, null);
     }
 
     public Assign(Assign<E> superAssign) {
-        this(superAssign.mainData, superAssign.depth + ROOT_DEPTH, superAssign);
+        this(superAssign.mainData, superAssign.depth + ROOT_DEPTH, superAssign, null);
     }
 
     public <K, T> Acquire<E, K, T> addAcquire(Function<Collection<K>, Map<K, T>> fetcher) {
@@ -164,9 +165,8 @@ public class Assign<E> {
         return this;
     }
 
-    public Assign<E> addBranch(Predicate<E> retain) {
-        List<E> list = Streams.retain(this.mainData, retain).toList();
-        return new Assign<>(list, this.depth + 1, this);
+    public Assign<E> addBranch(Predicate<E> filter) {
+        return new Assign<>(this.mainData, this.depth + 1, this, filter);
     }
 
     public Assign<E> addBranch() {
@@ -253,11 +253,14 @@ public class Assign<E> {
                 return this;
             }
         }
+        if (Objects.nonNull(this.filter)) {
+            this.mainData = Streams.retain(this.mainData, filter).toList();
+        }
         if (CollectionUtils.isEmpty(this.mainData)) {
             this.status = InvokeStatusEnum.ALL_SUCCESS;
             return this;
         }
-        log.debug("invoke main, name:{}", this.name);
+        log.debug("Assign name:{}", this.name);
         this.invokeMain();
         int sum = this.acquires.stream().map(k -> k.isSuccess() ? 0 : 1).reduce(0, Integer::sum);
         if (sum == 0) {
@@ -279,49 +282,40 @@ public class Assign<E> {
 
     private void invokeMain() {
         this.mainData.forEach(e -> this.assignValues.forEach(a -> a.accept(e)));
-        if (Objects.nonNull(this.executor)) {
-            try {
-                List<? extends CompletableFuture<? extends Map<?, ?>>> completableFutureList = this.acquires.stream()
-                        .map(a -> CompletableFuture.supplyAsync(() -> a.fetch(this.mainData), this.executor))
-                        .toList();
-                CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
-            } catch (Exception e) {
-                log.error("Assign parallel fetch data exception", e);
-            }
-        } else {
-            this.acquires.forEach(a -> a.fetch(this.mainData));
-        }
+        Assign.<Acquire<E, ?, ?>, Map<?, ?>>parallelExecute(this.executor, this.acquires,
+                a -> true, a -> a.fetch(this.mainData), "Assign parallel fetch data exception");
         this.mainData.forEach(e -> this.acquires.forEach(a -> a.invoke(e)));
     }
 
     private void invokeBranches() {
-        if (Objects.nonNull(this.executor)) {
-            try {
-                List<? extends CompletableFuture<? extends Assign<?>>> completableFutureList = this.branches.stream()
-                        .filter(b -> InvokeStatusEnum.CREATED.equals(b.status))
-                        .map(a -> CompletableFuture.supplyAsync(a::invoke, this.executor))
-                        .toList();
-                CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
-            } catch (Exception e) {
-                log.error("Assign parallel execute branches exception", e);
-            }
-        } else {
-            this.branches.stream().filter(b -> InvokeStatusEnum.CREATED.equals(b.status)).forEach(Assign::invoke);
-        }
+        Assign.parallelExecute(this.executor, this.branches, a -> InvokeStatusEnum.CREATED.equals(a.status),
+                Assign::invoke, "Assign parallel execute branches exception");
     }
 
     private void invokeSubs() {
-        if (Objects.nonNull(this.executor)) {
+        Assign.<Consumer<Collection<E>>, Void>parallelExecute(this.executor, this.subs,
+                a -> true, a -> {
+                    a.accept(this.mainData);
+                    return null;
+                }, "Assign parallel execute invokeSubs exception");
+    }
+
+    static <T, R> void parallelExecute(Executor executor, List<T> ts,
+                                       Predicate<T> filter, Function<T, R> function,
+                                       String errorMsg) {
+        if (Objects.nonNull(executor)) {
             try {
-                List<CompletableFuture<Void>> completableFutureList = this.subs.stream()
-                        .map(a -> CompletableFuture.runAsync(() -> a.accept(this.mainData), this.executor))
+                List<CompletableFuture<R>> completableFutureList = ts.stream()
+                        .filter(filter)
+                        .map(t -> CompletableFuture.supplyAsync(() -> function.apply(t), executor))
                         .toList();
                 CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
             } catch (Exception e) {
-                log.error("Assign parallel execute subs exception", e);
+                log.error(errorMsg, e);
+                BaseExceptionEnum.ASSIGN_PARALLEL_EXECUTE_EXCEPTION.except(e);
             }
         } else {
-            this.subs.forEach(s -> s.accept(this.mainData));
+            ts.stream().filter(filter).forEach(function::apply);
         }
     }
 

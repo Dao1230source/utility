@@ -66,7 +66,9 @@ public enum BaseExceptionEnum implements EnumProcessor<BaseException> {
     /**
      * assign exception
      */
-    ASSIGN_ACQUIRE_RUN_EXCEPTION("assign acquire exception");
+    ASSIGN_ACQUIRE_RUN_EXCEPTION("assign acquire exception"),
+    ASSIGN_PARALLEL_EXECUTE_EXCEPTION("assign parallel execute exception"),
+    ;
 
     private final String message;
 
