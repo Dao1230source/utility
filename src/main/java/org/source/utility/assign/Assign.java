@@ -174,14 +174,24 @@ public class Assign<E> {
     }
 
     public <K> Assign<E> addBranches(Function<E, K> keyGetter, Map<K, Function<Collection<E>, Assign<E>>> keyAssigners) {
+        Map<K, Consumer<Collection<E>>> keyOperates = HashMap.newHashMap(keyAssigners.size());
+        keyAssigners.forEach((k, v) -> keyOperates.put(k, l -> {
+            Assign<E> assign = v.apply(l);
+            assign.superAssign = this;
+            this.branches.add(assign);
+        }));
+        return addOperates(keyGetter, keyOperates);
+    }
+
+    public <K> Assign<E> addOperates(Function<E, K> keyGetter, Map<K, Consumer<Collection<E>>> keyOperates) {
         Map<K, List<E>> keyMap = Streams.groupBy(this.mainData, keyGetter);
-        Map<Function<Collection<E>, Assign<E>>, List<E>> assignerDataMap = HashMap.newHashMap(keyMap.size());
-        keyAssigners.forEach((k, consumer) -> {
+        Map<Consumer<Collection<E>>, List<E>> operatorDataMap = HashMap.newHashMap(keyMap.size());
+        keyOperates.forEach((k, consumer) -> {
             List<E> es = keyMap.get(k);
             if (CollectionUtils.isEmpty(es)) {
                 return;
             }
-            assignerDataMap.compute(consumer, (a, l) -> {
+            operatorDataMap.compute(consumer, (a, l) -> {
                 if (CollectionUtils.isEmpty(l)) {
                     l = new ArrayList<>();
                 }
@@ -189,11 +199,7 @@ public class Assign<E> {
                 return l;
             });
         });
-        assignerDataMap.forEach((f, l) -> {
-            Assign<E> assign = f.apply(l);
-            assign.superAssign = this;
-            this.branches.add(assign);
-        });
+        operatorDataMap.forEach(Consumer::accept);
         return this;
     }
 
