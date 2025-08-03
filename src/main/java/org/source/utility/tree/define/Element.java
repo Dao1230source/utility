@@ -1,14 +1,12 @@
-package org.source.utility.tree.identity;
+package org.source.utility.tree.define;
 
 
 import lombok.NonNull;
 
-import java.io.Serializable;
-
 /**
  * @author zengfugen
  */
-public interface Element<I> extends Comparable<Element<I>>, Serializable {
+public interface Element<I> {
     /**
      * get id
      *

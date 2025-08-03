@@ -1,16 +1,16 @@
-package org.source.utility.tree.identity;
+package org.source.utility.tree.define;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> extends Comparable<N>, Serializable {
+public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> {
     E getElement();
 
     void setElement(E element);
@@ -33,6 +33,7 @@ public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> extends 
     /**
      * getProperty
      */
+    @Nullable
     static <I, E extends Element<I>, N extends Node<I, E, N>, V> V getProperty(Node<I, E, N> n, Function<E, V> getter) {
         if (Objects.isNull(n) || Objects.isNull(n.getElement()) || Objects.isNull(getter)) {
             return null;

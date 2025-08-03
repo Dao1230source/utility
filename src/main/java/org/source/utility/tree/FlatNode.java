@@ -6,8 +6,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.source.utility.function.SFunction;
-import org.source.utility.tree.identity.AbstractNode;
-import org.source.utility.tree.identity.Element;
+import org.source.utility.tree.define.AbstractNode;
+import org.source.utility.tree.define.Element;
 import org.source.utility.utils.Lambdas;
 import org.source.utility.utils.Streams;
 
@@ -22,32 +22,20 @@ public class FlatNode<I, E extends Element<I>> extends AbstractNode<I, E, FlatNo
     private final List<SFunction<E, Object>> propertyGetters;
 
     @JsonAnyGetter
-    private transient LinkedHashMap<String, Object> properties;
+    private LinkedHashMap<String, Object> properties;
 
-    @SuppressWarnings("unchecked")
+    public FlatNode(List<SFunction<E, Object>> propertyGetters) {
+        this.propertyGetters = propertyGetters;
+    }
+
     @Override
-    public <J, F extends Element<J>, O extends AbstractNode<J, F, O>> O emptyNode() {
-        return (O) FlatNode.newInstance(this.propertyGetters);
+    public FlatNode<I, E> emptyNode() {
+        return new FlatNode<>(this.propertyGetters);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public <J, F extends Element<J>, O extends AbstractNode<J, F, O>> Tree<J, F, O> emptyTree() {
-        return (Tree<J, F, O>) FlatNode.buildTree(this.propertyGetters);
+    public void nodeHandler() {
+        this.setProperties(LinkedHashMap.newLinkedHashMap(this.propertyGetters.size()));
+        Streams.of(this.propertyGetters).forEach(k -> this.getProperties().put(Lambdas.getFieldName(k), k.apply(this.getElement())));
     }
-
-    public static <I, E extends Element<I>> FlatNode<I, E> newInstance(List<SFunction<E, Object>> propertyGetters) {
-        return new FlatNode<>(propertyGetters);
-    }
-
-    public static <I, E extends Element<I>> void nodeHandler(FlatNode<I, E> node) {
-        node.setProperties(LinkedHashMap.newLinkedHashMap(node.propertyGetters.size()));
-        Streams.of(node.propertyGetters).forEach(k -> node.getProperties().put(Lambdas.getFieldName(k), k.apply(node.getElement())));
-    }
-
-
-    public static <I, E extends Element<I>> Tree<I, E, FlatNode<I, E>> buildTree(List<SFunction<E, Object>> propertyGetters) {
-        return new Tree<>(() -> FlatNode.newInstance(propertyGetters), FlatNode::nodeHandler);
-    }
-
 }
