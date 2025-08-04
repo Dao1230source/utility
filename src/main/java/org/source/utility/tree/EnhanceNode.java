@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import org.source.utility.tree.define.AbstractNode;
 import org.source.utility.tree.define.EnhanceElement;
-import org.springframework.util.CollectionUtils;
 
 import java.util.*;
 
@@ -23,7 +22,7 @@ public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N
 
     @Override
     public void addChild(N child) {
-        if (CollectionUtils.isEmpty(this.children)) {
+        if (Objects.isNull(this.children)) {
             this.children = new TreeSet<>(this.comparator);
         }
         this.children.add(child);
@@ -31,7 +30,7 @@ public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N
 
     @Override
     public void appendToParent(N parent) {
-        if (CollectionUtils.isEmpty(this.parents)) {
+        if (Objects.isNull(this.parents)) {
             this.parents = new HashSet<>();
         }
         this.parents.add(parent);
