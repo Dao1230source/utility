@@ -1,18 +1,20 @@
 package org.source.utility.tree;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.source.utility.tree.define.AbstractNode;
+import org.source.utility.tree.define.Element;
 import org.source.utility.tree.define.EnhanceElement;
+import org.source.utility.utils.Streams;
+import org.springframework.util.CollectionUtils;
 
 import java.util.*;
 
-@JsonIgnoreProperties(value = {"parent", "parents", "comparator"})
-@Data
+@JsonIgnoreProperties(value = {"parent", "comparator"})
 public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N extends EnhanceNode<I, E, N>> extends AbstractNode<I, E, N> {
-    private Set<N> parents;
+    private LinkedHashSet<N> parents;
     private TreeSet<N> children;
-    private Comparator<N> comparator = EnhanceNode::comparator;
+    private final Comparator<N> comparator = (o1, o2) -> Element.nullLast(o1.getElement(), o2.getElement(), EnhanceElement::compareTo);
 
     @SuppressWarnings("unchecked")
     @Override
@@ -22,7 +24,7 @@ public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N
 
     @Override
     public void addChild(N child) {
-        if (Objects.isNull(this.children)) {
+        if (CollectionUtils.isEmpty(this.children)) {
             this.children = new TreeSet<>(this.comparator);
         }
         this.children.add(child);
@@ -30,8 +32,8 @@ public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N
 
     @Override
     public void appendToParent(N parent) {
-        if (Objects.isNull(this.parents)) {
-            this.parents = new HashSet<>();
+        if (CollectionUtils.isEmpty(this.parents)) {
+            this.parents = new LinkedHashSet<>();
         }
         this.parents.add(parent);
     }
@@ -52,6 +54,15 @@ public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N
         this.children.addAll(children);
     }
 
+    @JsonProperty(value = "parents", access = JsonProperty.Access.READ_ONLY)
+    public List<E> parentsToJson() {
+        // 只有一个父级时无需展示
+        if (CollectionUtils.isEmpty(this.parents) || this.parents.size() == 1) {
+            return List.of();
+        }
+        return Streams.of(parents).map(N::getElement).filter(Objects::nonNull).toList();
+    }
+
     @Override
     public boolean equals(Object o) {
         return super.equals(o);
@@ -65,9 +76,5 @@ public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N
     @Override
     public String toString() {
         return super.toString();
-    }
-
-    public static <I extends Comparable<I>, E extends EnhanceElement<I>, N extends EnhanceNode<I, E, N>> int comparator(N first, N second) {
-        return EnhanceElement.nullLast(first.getElement(), second.getElement(), EnhanceElement::compareTo);
     }
 }

@@ -13,8 +13,6 @@ import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.source.utility.enums.BaseExceptionEnum;
-import org.springframework.lang.NonNull;
-import org.springframework.lang.Nullable;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -24,8 +22,8 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author zengfugen
- */
+* @author zengfugen
+*/
 @Slf4j
 public class Jsons {
     private Jsons() {
@@ -44,7 +42,7 @@ public class Jsons {
 
     public static void config(ObjectMapper mapper) {
         // 非空
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
         // 空bean转换失败：false
         mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
         // 属性值不存在失败：false
@@ -59,9 +57,6 @@ public class Jsons {
     }
 
     public static String str(Object obj) {
-        if (Objects.isNull(obj)) {
-            return null;
-        }
         try {
             return MAPPER.writeValueAsString(obj);
         } catch (JsonProcessingException e) {
@@ -70,9 +65,6 @@ public class Jsons {
     }
 
     public static byte[] bytes(Object obj) {
-        if (Objects.isNull(obj)) {
-            return new byte[0];
-        }
         try {
             return MAPPER.writeValueAsBytes(obj);
         } catch (JsonProcessingException e) {
@@ -88,10 +80,7 @@ public class Jsons {
         }
     }
 
-    public static <T> @Nullable T obj(@Nullable byte[] bytes, JavaType valueType) {
-        if (Objects.isNull(bytes)) {
-            return null;
-        }
+    public static <T> T obj(byte[] bytes, JavaType valueType) {
         try {
             return MAPPER.readValue(bytes, valueType);
         } catch (IOException e) {
@@ -107,16 +96,12 @@ public class Jsons {
         return obj(jsonStr, MAPPER.constructType(type));
     }
 
-    public static <T> @NonNull List<T> list(String jsonStr) {
-        List<T> tList = obj(jsonStr, MAPPER.constructType(new TypeReference<List<T>>() {
+    public static <T> List<T> list(String jsonStr) {
+        return obj(jsonStr, MAPPER.constructType(new TypeReference<List<T>>() {
         }));
-        if (Objects.isNull(tList)) {
-            return List.of();
-        }
-        return tList;
     }
 
-    public static <T> @NonNull List<T> list(String jsonStr, Class<T> tClass) {
+    public static <T> List<T> list(String jsonStr, Class<T> tClass) {
         List<T> tList = obj(jsonStr, getJavaType(List.class, tClass));
         if (Objects.isNull(tList)) {
             return List.of();
@@ -125,11 +110,11 @@ public class Jsons {
     }
 
     @SuppressWarnings("unchecked")
-    public static @Nullable JavaType getJavaType(Class<?>... classes) {
+    public static JavaType getJavaType(Class<?>... classes) {
         TypeFactory typeFactory = MAPPER.getTypeFactory();
         JavaType javaType;
         if (classes.length == 0) {
-            return null;
+            return typeFactory.constructArrayType(String.class);
         } else if (classes.length == 1) {
             javaType = typeFactory.constructType(classes[0]);
         } else {

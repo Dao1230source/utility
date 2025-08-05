@@ -1,6 +1,8 @@
 package org.source.utility.tree.define;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.source.utility.utils.Jsons;
@@ -9,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(value = {"parent"})
 @Slf4j
 @Data
@@ -33,10 +36,12 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
         this.parent = parent;
     }
 
+    @JsonIgnore
     public I getId() {
         return Node.getProperty(this, Element::getId);
     }
 
+    @JsonIgnore
     public I getParentId() {
         return Node.getProperty(this, Element::getParentId);
     }
