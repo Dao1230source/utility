@@ -1,5 +1,6 @@
 package org.source.utility.tree;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.source.utility.tree.define.AbstractNode;
@@ -61,6 +62,11 @@ public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N
             return List.of();
         }
         return Streams.of(parents).map(N::getElement).filter(Objects::nonNull).toList();
+    }
+
+    @JsonIgnore
+    public Set<N> getParents() {
+        return parents;
     }
 
     @Override
