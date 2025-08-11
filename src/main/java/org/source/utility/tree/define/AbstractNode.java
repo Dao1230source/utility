@@ -1,8 +1,9 @@
 package org.source.utility.tree.define;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.source.utility.utils.Jsons;
@@ -12,12 +13,13 @@ import java.util.List;
 import java.util.Objects;
 
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-@JsonIgnoreProperties(value = {"parent"})
 @Slf4j
 @Data
 public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNode<I, E, N>> implements Node<I, E, N> {
     private E element;
+    @JsonBackReference
     private N parent;
+    @JsonManagedReference
     private List<N> children;
 
     public abstract N emptyNode();

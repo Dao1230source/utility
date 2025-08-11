@@ -11,7 +11,7 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.*;
 
-@JsonIgnoreProperties(value = {"parent", "comparator"})
+@JsonIgnoreProperties(value = {"comparator"})
 public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N extends EnhanceNode<I, E, N>> extends AbstractNode<I, E, N> {
     private LinkedHashSet<N> parents;
     private TreeSet<N> children;

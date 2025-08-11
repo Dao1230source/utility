@@ -20,7 +20,6 @@ public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> {
      *
      * @return parent
      */
-    @JsonIgnore
     N getParent();
 
     /**
@@ -29,6 +28,16 @@ public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> {
      * @return children
      */
     List<N> getChildren();
+
+    @JsonIgnore
+    default boolean hasElement() {
+        return Objects.nonNull(this.getElement());
+    }
+
+    @JsonIgnore
+    default boolean hasChildren() {
+        return !CollectionUtils.isEmpty(this.getChildren());
+    }
 
     /**
      * getProperty
