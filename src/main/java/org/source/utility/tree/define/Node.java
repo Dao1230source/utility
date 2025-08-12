@@ -30,6 +30,16 @@ public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> {
     List<N> getChildren();
 
     @JsonIgnore
+    default I getId() {
+        return Node.getProperty(this, Element::getId);
+    }
+
+    @JsonIgnore
+    default I getParentId() {
+        return Node.getProperty(this, Element::getParentId);
+    }
+
+    @JsonIgnore
     default boolean hasElement() {
         return Objects.nonNull(this.getElement());
     }

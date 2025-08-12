@@ -1,7 +1,6 @@
 package org.source.utility.tree.define;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import lombok.Data;
@@ -36,16 +35,6 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
 
     public void appendToParent(N parent) {
         this.parent = parent;
-    }
-
-    @JsonIgnore
-    public I getId() {
-        return Node.getProperty(this, Element::getId);
-    }
-
-    @JsonIgnore
-    public I getParentId() {
-        return Node.getProperty(this, Element::getParentId);
     }
 
     /**

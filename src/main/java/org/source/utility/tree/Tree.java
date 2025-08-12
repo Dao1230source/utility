@@ -57,20 +57,26 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
         if (CollectionUtils.isEmpty(es)) {
             return root;
         }
-        es.forEach(e -> {
+        List<N> toAddNodes = Streams.map(es, e -> {
             this.getSourceElements().add(e);
             N n = this.getRoot().emptyNode();
             n.setElement(e);
             if (Objects.nonNull(this.getAfterCreateHandler())) {
                 this.getAfterCreateHandler().accept(n);
             }
-            N node = this.getIdMap().compute(this.getIdGetter().apply(n), (k, old) -> {
-                // 如有更新处理器
-                if (Objects.nonNull(this.getMergeHandler())) {
-                    return this.getMergeHandler().apply(n, old);
-                }
-                return n;
-            });
+            return n;
+        }).toList();
+        // 先将所有元素缓存，避免有可能父级数据在后，当前元素加入时找不到父级的情况
+        Map<I, N> cachedNodeMap = Streams.toMap(toAddNodes, AbstractNode::getId, n ->
+                this.getIdMap().compute(this.getIdGetter().apply(n), (k, old) -> {
+                    // 新旧数据合并处理
+                    if (Objects.nonNull(this.getMergeHandler())) {
+                        return this.getMergeHandler().apply(n, old);
+                    }
+                    return n;
+                }));
+        toAddNodes.forEach(n -> {
+            N node = cachedNodeMap.get(n.getId());
             I parentId = this.getParentIdGetter().apply(n);
             N parent = this.getParent(parentId);
             parent.addChild(node);
