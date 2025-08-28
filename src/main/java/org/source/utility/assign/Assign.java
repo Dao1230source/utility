@@ -237,6 +237,11 @@ public class Assign<E> {
         this.mainData.forEach(consumer);
     }
 
+    public Assign<E> peek(Consumer<E> consumer) {
+        this.mainData.forEach(consumer);
+        return this;
+    }
+
     public List<E> toList() {
         return new ArrayList<>(this.mainData);
     }

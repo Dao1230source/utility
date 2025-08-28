@@ -37,6 +37,12 @@ public abstract class AbstractNode<I, E extends Element<I>, N extends AbstractNo
         this.parent = parent;
     }
 
+    public void clear() {
+        this.element = null;
+        this.children = null;
+        this.parent = null;
+    }
+
     /**
      * 只比较element
      * <br>

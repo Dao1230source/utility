@@ -141,6 +141,11 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
         return emptyTree2;
     }
 
+    public void clear() {
+        this.idMap.clear();
+        this.sourceElements.clear();
+        this.root.clear();
+    }
 
     @Override
     public boolean equals(Object o) {
