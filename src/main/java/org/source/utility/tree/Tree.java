@@ -67,7 +67,7 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
             return n;
         }).toList();
         // 先将所有元素缓存，避免有可能父级数据在后，当前元素加入时找不到父级的情况
-        Map<I, N> cachedNodeMap = Streams.toMap(toAddNodes, AbstractNode::getId, n ->
+        Map<I, N> cachedNodeMap = Streams.toMap(toAddNodes, this.getIdGetter(), n ->
                 this.getIdMap().compute(this.getIdGetter().apply(n), (k, old) -> {
                     // 新旧数据合并处理
                     if (Objects.nonNull(this.getMergeHandler())) {
@@ -76,7 +76,8 @@ public class Tree<I, E extends Element<I>, N extends AbstractNode<I, E, N>> {
                     return n;
                 }));
         toAddNodes.forEach(n -> {
-            N node = cachedNodeMap.get(n.getId());
+            I id = this.getIdGetter().apply(n);
+            N node = cachedNodeMap.get(id);
             I parentId = this.getParentIdGetter().apply(n);
             N parent = this.getParent(parentId);
             parent.addChild(node);
