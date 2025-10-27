@@ -1,7 +1,5 @@
 package org.source.utility.assign;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.util.function.BiConsumer;
 
 public class Assemble<E, T> {
@@ -11,7 +9,7 @@ public class Assemble<E, T> {
         this.getAndSet = getAndSet;
     }
 
-    public void invoke(@NotNull E e, @NotNull T t) {
+    void invoke(E e, T t) {
         this.getAndSet.accept(e, t);
     }
 }

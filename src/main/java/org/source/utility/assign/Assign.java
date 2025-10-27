@@ -8,10 +8,12 @@ import org.source.utility.utils.Streams;
 import org.springframework.lang.Nullable;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.*;
+import java.util.stream.Stream;
 
 @Slf4j
 public class Assign<E> {
@@ -293,40 +295,46 @@ public class Assign<E> {
 
     private void invokeMain() {
         this.mainData.forEach(e -> this.assignValues.forEach(a -> a.accept(e)));
-        Assign.<Acquire<E, ?, ?>, Map<?, ?>>parallelExecute(this.executor, this.acquires,
-                a -> true, a -> a.fetch(this.mainData), "Assign parallel fetch data exception");
+        Assign.<Acquire<E, ?, ?>, Map<?, ?>>parallelExecute(this.acquires, a -> a.fetch(this.mainData),
+                this.executor, null, "Assign parallel fetch data exception");
         this.mainData.forEach(e -> this.acquires.forEach(a -> a.invoke(e)));
     }
 
     private void invokeBranches() {
-        Assign.parallelExecute(this.executor, this.branches, a -> InvokeStatusEnum.CREATED.equals(a.status),
-                Assign::invoke, "Assign parallel execute branches exception");
+        Assign.parallelExecute(this.branches, Assign::invoke,
+                this.executor, a -> InvokeStatusEnum.CREATED.equals(a.status), "Assign parallel execute branches exception");
     }
 
     private void invokeSubs() {
-        Assign.<Consumer<Collection<E>>, Void>parallelExecute(this.executor, this.subs,
-                a -> true, a -> {
-                    a.accept(this.mainData);
-                    return null;
-                }, "Assign parallel execute invokeSubs exception");
+        Assign.<Consumer<Collection<E>>, Void>parallelExecute(this.subs, a -> {
+            a.accept(this.mainData);
+            return null;
+        }, this.executor, null, "Assign parallel execute invokeSubs exception");
     }
 
-    static <T, R> void parallelExecute(Executor executor, List<T> ts,
-                                       Predicate<T> filter, Function<T, R> function,
-                                       String errorMsg) {
+    static <T, R> void parallelExecute(Collection<T> ts,
+                                       Function<T, R> function,
+                                       @Nullable Executor executor,
+                                       @Nullable Predicate<T> filter,
+                                       @Nullable String errorMsg) {
+        Stream<T> tStream = Streams.of(ts);
+        if (Objects.nonNull(filter)) {
+            tStream = tStream.filter(filter);
+        }
         if (Objects.nonNull(executor)) {
             try {
-                List<CompletableFuture<R>> completableFutureList = ts.stream()
-                        .filter(filter)
+                List<CompletableFuture<R>> completableFutureList = tStream
                         .map(t -> CompletableFuture.supplyAsync(() -> function.apply(t), executor))
                         .toList();
                 CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
             } catch (Exception e) {
-                log.error(errorMsg, e);
-                BaseExceptionEnum.ASSIGN_PARALLEL_EXECUTE_EXCEPTION.except(e);
+                if (StringUtils.hasText(errorMsg)) {
+                    log.error(errorMsg, e);
+                }
+                throw BaseExceptionEnum.ASSIGN_PARALLEL_EXECUTE_EXCEPTION.except(e, errorMsg);
             }
         } else {
-            ts.stream().filter(filter).forEach(function::apply);
+            tStream.forEach(function::apply);
         }
     }
 

@@ -47,7 +47,7 @@ public class Action<E, K, T> {
         return this.acquire;
     }
 
-    public void invoke(E e, Map<K, T> ktMap) {
+    void invoke(E e, Map<K, T> ktMap) {
         if (Maps.isEmpty(ktMap)) {
             return;
         }

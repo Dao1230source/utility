@@ -11,9 +11,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -29,6 +27,7 @@ public class Acquire<E, K, T> {
     private final Assign<E> assign;
     private final List<Action<E, K, T>> actions;
     private final Function<Collection<K>, Map<K, T>> batchFetcher;
+    // 有些接口不支持批量查询
     private final Function<K, T> fetcher;
 
     private Map<K, T> ktMap;
@@ -117,26 +116,22 @@ public class Acquire<E, K, T> {
             this.ktMap = Map.of();
             return this.ktMap;
         }
+        List<List<K>> partitions;
         // 分批请求
         if (Objects.nonNull(this.batchSize)) {
-            Map<K, T> result = new ConcurrentHashMap<>(ks.size());
-            List<? extends CompletableFuture<Void>> completableFutureList = Streams.partition(new ArrayList<>(ks), this.batchSize).stream().map(k ->
-                            CompletableFuture.runAsync(() -> this.getFromCacheAsync(k, result), this.assign.getExecutor()))
-                    .toList();
-            CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
-            this.ktMap = result;
+            partitions = Streams.partition(new ArrayList<>(ks), this.batchSize);
         } else {
-            this.ktMap = this.getFromCache(ks);
+            partitions = List.of(new ArrayList<>(ks));
         }
+        Assign.<List<K>, Void>parallelExecute(partitions, k -> {
+            Map<K, T> fromCache = this.getFromCache(new HashSet<>(ks));
+            this.ktMap.putAll(fromCache);
+            return null;
+        }, this.assign.getExecutor(), null, "Acquire.fetch parallel execute by batchSize exception");
         if (log.isDebugEnabled()) {
             log.debug("fetch result: {}", Jsons.str(this.ktMap));
         }
         return this.ktMap;
-    }
-
-    private void getFromCacheAsync(Collection<K> ks, Map<K, T> result) {
-        Map<K, T> fromCache = this.getFromCache(new HashSet<>(ks));
-        result.putAll(fromCache);
     }
 
     private Map<K, T> getFromCache(Set<K> ks) {
@@ -168,16 +163,8 @@ public class Acquire<E, K, T> {
         } else if (Objects.nonNull(this.fetcher)) {
             Map<K, T> result = HashMap.newHashMap(ks.size());
             if (Objects.nonNull(this.assign) && Objects.nonNull(this.assign.getExecutor())) {
-                Map<K, CompletableFuture<T>> map = Streams.toMap(ks, Function.identity(),
-                        k -> CompletableFuture.supplyAsync(() -> this.fetcher.apply(k), this.assign.getExecutor()));
-                map.forEach((k, v) -> {
-                    try {
-                        result.put(k, v.get());
-                    } catch (InterruptedException | ExecutionException e) {
-                        Thread.currentThread().interrupt();
-                        log.error("Acquire parallel execute fetcher exception", e);
-                    }
-                });
+                Assign.parallelExecute(ks, this.fetcher,
+                        this.assign.getExecutor(), null, "Acquire parallel execute fetcher exception");
             } else {
                 ks.forEach(k -> result.put(k, this.fetcher.apply(k)));
             }
