@@ -6,24 +6,25 @@ import lombok.extern.slf4j.Slf4j;
 import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.utils.Streams;
 import org.springframework.lang.Nullable;
-import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.*;
 import java.util.stream.Stream;
 
 @Slf4j
 public class Assign<E> {
     private static final int ROOT_DEPTH = 1;
-    private static final Assign<?> EMPTY = Assign.build(List.of());
-    private static final int PROCESSORS = Runtime.getRuntime().availableProcessors();
-    private static final ExecutorService DEFAULT_EXECUTE = Objects.requireNonNull(TtlExecutors.getTtlExecutorService(
-            new ThreadPoolExecutor(1, PROCESSORS * 10, 60, TimeUnit.SECONDS, new SynchronousQueue<>(),
-                    new CustomizableThreadFactory("assign-pool-"), new ThreadPoolExecutor.CallerRunsPolicy())
-    ));
+    /**
+     * jdk21，改用虚拟线程
+     */
+    private static final ExecutorService DEFAULT_EXECUTE = Objects.requireNonNull(
+            TtlExecutors.getTtlExecutorService(Executors.newVirtualThreadPerTaskExecutor()));
     /**
      * 集合不可修改，只可以更新集合对象的值
      */
@@ -210,19 +211,19 @@ public class Assign<E> {
         return this;
     }
 
-    @SuppressWarnings("unchecked")
     public Assign<E> backSuper() {
         Assign<E> assign = this.superAssign;
         if (Objects.isNull(assign)) {
-            return (Assign<E>) EMPTY;
+            log.info("super assign is null, return self");
+            return this;
         }
         return assign;
     }
 
-    @SuppressWarnings("unchecked")
     public Assign<E> backSuperTo(int depth) {
         if (depth < ROOT_DEPTH || depth >= this.depth) {
-            return (Assign<E>) EMPTY;
+            log.info("dept={} super assign is null, return self", depth);
+            return this;
         }
         Assign<E> assign = this.backSuper();
         while (assign.depth > depth) {
