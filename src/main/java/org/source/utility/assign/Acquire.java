@@ -123,11 +123,14 @@ public class Acquire<E, K, T> {
         } else {
             partitions = List.of(new ArrayList<>(ks));
         }
-        Assign.<List<K>, Void>parallelExecute(partitions, k -> {
-            Map<K, T> fromCache = this.getFromCache(new HashSet<>(ks));
+        Assign.<List<K>, Void>parallelExecute(partitions, this.assign.functionRunVirtualExecutor(k -> {
+            Map<K, T> fromCache = this.getFromCache(new HashSet<>(k));
+            if (Objects.isNull(this.ktMap)) {
+                this.ktMap = new ConcurrentHashMap<>(ks.size());
+            }
             this.ktMap.putAll(fromCache);
             return null;
-        }, this.assign.getExecutor(), null, "Acquire.fetch parallel execute by batchSize exception");
+        }), this.assign.getExecutor(), null, "Acquire.fetch parallel execute by batchSize exception");
         if (log.isDebugEnabled()) {
             log.debug("fetch result: {}", Jsons.str(this.ktMap));
         }
@@ -163,7 +166,7 @@ public class Acquire<E, K, T> {
         } else if (Objects.nonNull(this.fetcher)) {
             Map<K, T> result = HashMap.newHashMap(ks.size());
             if (Objects.nonNull(this.assign) && Objects.nonNull(this.assign.getExecutor())) {
-                Assign.parallelExecute(ks, this.fetcher,
+                Assign.parallelExecute(ks, this.assign.functionRunVirtualExecutor(this.fetcher),
                         this.assign.getExecutor(), null, "Acquire parallel execute fetcher exception");
             } else {
                 ks.forEach(k -> result.put(k, this.fetcher.apply(k)));

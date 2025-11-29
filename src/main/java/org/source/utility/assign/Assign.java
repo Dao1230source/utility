@@ -6,25 +6,30 @@ import lombok.extern.slf4j.Slf4j;
 import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.utils.Streams;
 import org.springframework.lang.Nullable;
+import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.stream.Stream;
 
 @Slf4j
 public class Assign<E> {
     private static final int ROOT_DEPTH = 1;
+    private static final int PROCESSORS = Runtime.getRuntime().availableProcessors();
     /**
      * jdk21，改用虚拟线程
      */
-    private static final ExecutorService DEFAULT_EXECUTE = Objects.requireNonNull(
+    public static final int SEMAPHORE_PERMITS_DEFAULT = PROCESSORS * 100;
+    private static final ExecutorService DEFAULT_EXECUTOR_VIRTUAL = Objects.requireNonNull(
             TtlExecutors.getTtlExecutorService(Executors.newVirtualThreadPerTaskExecutor()));
+
+    private static final ExecutorService DEFAULT_EXECUTOR = Objects.requireNonNull(TtlExecutors.getTtlExecutorService(
+            new ThreadPoolExecutor(1, PROCESSORS * 10, 60, TimeUnit.SECONDS, new SynchronousQueue<>(),
+                    new CustomizableThreadFactory("assign-pool-"), new ThreadPoolExecutor.CallerRunsPolicy())
+    ));
     /**
      * 集合不可修改，只可以更新集合对象的值
      */
@@ -52,6 +57,10 @@ public class Assign<E> {
     @Nullable
     @Getter
     private Executor executor;
+    /**
+     * 资源计数器
+     */
+    private Semaphore semaphore;
     /**
      * 执行状态
      */
@@ -147,14 +156,44 @@ public class Assign<E> {
         return this;
     }
 
-    public Assign<E> parallel(Executor executor) {
-        log.debug("acquires executed parallel");
-        this.executor = executor;
-        return this;
+    public Assign<E> parallel() {
+        return parallel(null, null);
     }
 
-    public Assign<E> parallel() {
-        this.executor = DEFAULT_EXECUTE;
+    public Assign<E> parallelVirtual() {
+        return parallel(null, SEMAPHORE_PERMITS_DEFAULT);
+    }
+
+    public Assign<E> parallel(Executor executor) {
+        return parallel(executor, null);
+    }
+
+    public Assign<E> parallel(Integer semaphorePermitsMax) {
+        return parallel(null, semaphorePermitsMax);
+    }
+
+    /**
+     * 一般当 executor 为虚拟线程时，需指定“最大线程数”，防止创建大量虚拟线程，消耗关键资源，比如数据库连接等
+     *
+     * @param executor            线程池
+     * @param semaphorePermitsMax 同时保持的最大线程数
+     * @return Assign
+     */
+    public Assign<E> parallel(@Nullable Executor executor, @Nullable Integer semaphorePermitsMax) {
+        log.debug("parallel executed with executor:{}, semaphorePermitsMax:{} ", executor, semaphorePermitsMax);
+        this.executor = executor;
+        if (Objects.nonNull(semaphorePermitsMax)) {
+            this.semaphore = new Semaphore(semaphorePermitsMax);
+        }
+        if (Objects.nonNull(executor)) {
+            return this;
+        }
+        // executor 为空，设置默认线程池
+        if (Objects.nonNull(semaphorePermitsMax)) {
+            this.executor = DEFAULT_EXECUTOR_VIRTUAL;
+        } else {
+            this.executor = DEFAULT_EXECUTOR;
+        }
         return this;
     }
 
@@ -296,21 +335,21 @@ public class Assign<E> {
 
     private void invokeMain() {
         this.mainData.forEach(e -> this.assignValues.forEach(a -> a.accept(e)));
-        Assign.<Acquire<E, ?, ?>, Map<?, ?>>parallelExecute(this.acquires, a -> a.fetch(this.mainData),
+        Assign.<Acquire<E, ?, ?>, Map<?, ?>>parallelExecute(this.acquires, this.functionRunVirtualExecutor(a -> a.fetch(this.mainData)),
                 this.executor, null, "Assign parallel fetch data exception");
         this.mainData.forEach(e -> this.acquires.forEach(a -> a.invoke(e)));
     }
 
     private void invokeBranches() {
-        Assign.parallelExecute(this.branches, Assign::invoke,
+        Assign.parallelExecute(this.branches, this.functionRunVirtualExecutor(Assign::invoke),
                 this.executor, a -> InvokeStatusEnum.CREATED.equals(a.status), "Assign parallel execute branches exception");
     }
 
     private void invokeSubs() {
-        Assign.<Consumer<Collection<E>>, Void>parallelExecute(this.subs, a -> {
+        Assign.<Consumer<Collection<E>>, Void>parallelExecute(this.subs, this.functionRunVirtualExecutor(a -> {
             a.accept(this.mainData);
             return null;
-        }, this.executor, null, "Assign parallel execute invokeSubs exception");
+        }), this.executor, null, "Assign parallel execute invokeSubs exception");
     }
 
     static <T, R> void parallelExecute(Collection<T> ts,
@@ -336,6 +375,25 @@ public class Assign<E> {
             }
         } else {
             tStream.forEach(function::apply);
+        }
+    }
+
+    <T, R> Function<T, R> functionRunVirtualExecutor(Function<T, R> function) {
+        // 由于虚拟线程可大批量创建，这里使用信号量（Semaphore）控制最大线程并发数，避免数据库连接等资源过渡消耗
+        if (Objects.nonNull(this.semaphore)) {
+            return t -> {
+                try {
+                    this.semaphore.acquire();
+                    return function.apply(t);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw BaseExceptionEnum.THREAD_INTERRUPTED.except(e);
+                } finally {
+                    this.semaphore.release();
+                }
+            };
+        } else {
+            return function;
         }
     }
 
