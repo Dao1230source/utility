@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import org.source.utility.enums.BaseExceptionEnum;
 
@@ -22,13 +23,11 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
-* @author zengfugen
-*/
+ * @author zengfugen
+ */
 @Slf4j
+@UtilityClass
 public class Jsons {
-    private Jsons() {
-        throw new IllegalStateException("Utility class");
-    }
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -94,6 +93,10 @@ public class Jsons {
 
     public static <T> T obj(String jsonStr, Type type) {
         return obj(jsonStr, MAPPER.constructType(type));
+    }
+
+    public static <T> T obj(String jsonStr, TypeReference<T> typeReference) {
+        return obj(jsonStr, typeReference.getType());
     }
 
     public static <T> List<T> list(String jsonStr) {
