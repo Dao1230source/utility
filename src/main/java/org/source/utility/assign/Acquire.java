@@ -3,12 +3,12 @@ package org.source.utility.assign;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
+import org.source.utility.constant.Constants;
 import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.utils.Jsons;
 import org.source.utility.utils.Streams;
 import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,7 +20,11 @@ import java.util.stream.Collectors;
 
 @Slf4j
 public class Acquire<E, K, T> {
-    private static final Map<String, Cache<Object, Object>> CACHE_MAP = new ConcurrentHashMap<>(16);
+    /**
+     * 同一个 Assign 下的 Acquire 的 name 务必不能重复
+     */
+    private static final Cache<String, Cache<Object, Object>> CACHE_MAP = Caffeine.newBuilder()
+            .expireAfterAccess(600, TimeUnit.SECONDS).maximumSize(128).build();
     private final BiConsumer<E, Throwable> defaultExceptionHandler = (e, ex) -> {
         throw BaseExceptionEnum.ASSIGN_ACQUIRE_RUN_EXCEPTION.except(ex);
     };
@@ -30,25 +34,30 @@ public class Acquire<E, K, T> {
     // 有些接口不支持批量查询
     private final Function<K, T> fetcher;
 
-    private Map<K, T> ktMap;
-    private Supplier<Cache<K, T>> cacherSupplier;
     private String name;
+
+    private Map<K, T> ktMap;
+    @Nullable
+    private Supplier<Cache<K, T>> cacherSupplier;
     private BiConsumer<E, Map<K, T>> afterProcessor;
     private BiConsumer<E, Throwable> exceptionHandler;
     private Throwable throwable;
     private boolean throwException = false;
     private Integer batchSize;
+    private long timeout;
 
     public Acquire(Assign<E> assign,
                    @Nullable Function<Collection<K>, Map<K, T>> batchFetcher,
                    @Nullable Function<K, T> fetcher) {
         if (Objects.isNull(batchFetcher) && Objects.isNull(fetcher)) {
-            throw BaseExceptionEnum.NOT_NULL.except("batchFetcher和fetcher至少有一个不为空");
+            throw BaseExceptionEnum.NOT_NULL.except("batchFetcher 和 fetcher 至少有一个不为空");
         }
         this.assign = assign;
         this.batchFetcher = batchFetcher;
         this.fetcher = fetcher;
         this.actions = new ArrayList<>();
+        this.name = String.valueOf(this.hashCode());
+        this.timeout = assign.getTimeout();
     }
 
     public static <K, T> Cache<K, T> defaultCache() {
@@ -56,18 +65,24 @@ public class Acquire<E, K, T> {
     }
 
     public Acquire<E, K, T> cache(Supplier<Cache<K, T>> cacherSupplier) {
-        log.debug("cached by local cache, acquire name must not be null");
         this.cacherSupplier = cacherSupplier;
         return this;
     }
 
     public Acquire<E, K, T> cache() {
-        this.cacherSupplier = Acquire::defaultCache;
-        return this;
+        return cache(Acquire::defaultCache);
     }
 
     public Acquire<E, K, T> name(String name) {
         this.name = name;
+        return this;
+    }
+
+    public Acquire<E, K, T> timeout(long timeout) {
+        if (timeout <= 0) {
+            return this;
+        }
+        this.timeout = timeout;
         return this;
     }
 
@@ -102,7 +117,7 @@ public class Acquire<E, K, T> {
     }
 
     Map<K, T> fetch(Collection<E> mainData) {
-        log.info("Acquire name:{}", name);
+        log.debug("Acquire name:{}", name);
         if (Objects.nonNull(this.ktMap)) {
             return this.ktMap;
         }
@@ -124,28 +139,30 @@ public class Acquire<E, K, T> {
             partitions = List.of(new ArrayList<>(ks));
         }
         Assign.<List<K>, Void>parallelExecute(partitions, this.assign.functionRunVirtualExecutor(k -> {
-            Map<K, T> fromCache = this.getFromCache(new HashSet<>(k));
-            if (Objects.isNull(this.ktMap)) {
-                this.ktMap = new ConcurrentHashMap<>(ks.size());
+            synchronized (this) {
+                if (Objects.isNull(this.ktMap)) {
+                    this.ktMap = new ConcurrentHashMap<>(ks.size());
+                }
             }
+            Map<K, T> fromCache = this.getFromCache(new HashSet<>(k));
             this.ktMap.putAll(fromCache);
             return null;
-        }), this.assign.getExecutor(), null, "Acquire.fetch parallel execute by batchSize exception");
+        }), this.assign.getExecutor(), this.timeout, null, "Acquire.fetch parallel execute by batchSize exception");
         if (log.isDebugEnabled()) {
             log.debug("fetch result: {}", Jsons.str(this.ktMap));
         }
         return this.ktMap;
     }
 
+    @SuppressWarnings("unchecked")
     private Map<K, T> getFromCache(Set<K> ks) {
         try {
-            if (StringUtils.hasText(this.name) && Objects.nonNull(this.cacherSupplier)) {
-                @SuppressWarnings("unchecked")
-                Cache<K, T> cache = (Cache<K, T>) CACHE_MAP.computeIfAbsent(this.name,
+            if (Objects.nonNull(this.cacherSupplier)) {
+                String acquireCacheName = this.assign.getName() + Constants.UNDERSCORE + this.name;
+                Cache<K, T> cache = (Cache<K, T>) CACHE_MAP.get(acquireCacheName,
                         k -> (Cache<Object, Object>) this.cacherSupplier.get());
-                @SuppressWarnings("unchecked")
                 Map<K, T> cachedMap = cache.getAll(ks, keys -> this.get((Set<K>) keys));
-                log.info("fetch data from cache");
+                log.debug("fetch data from cache");
                 return cachedMap;
             } else {
                 return this.get(ks);
@@ -164,13 +181,19 @@ public class Acquire<E, K, T> {
         if (Objects.nonNull(this.batchFetcher)) {
             return this.batchFetcher.apply(ks);
         } else if (Objects.nonNull(this.fetcher)) {
-            Map<K, T> result = HashMap.newHashMap(ks.size());
+            Map<K, T> result;
             if (Objects.nonNull(this.assign) && Objects.nonNull(this.assign.getExecutor())) {
-                Assign.parallelExecute(ks, this.assign.functionRunVirtualExecutor(this.fetcher),
-                        this.assign.getExecutor(), null, "Acquire parallel execute fetcher exception");
+                result = new ConcurrentHashMap<>(ks.size());
+                Assign.parallelExecute(ks, this.assign.functionRunVirtualExecutor(k -> {
+                    T apply = this.fetcher.apply(k);
+                    result.put(k, apply);
+                    return apply;
+                }), this.assign.getExecutor(), this.timeout, null, "Acquire parallel execute fetcher exception");
             } else {
+                result = HashMap.newHashMap(ks.size());
                 ks.forEach(k -> result.put(k, this.fetcher.apply(k)));
             }
+            return result;
         }
         return Map.of();
     }

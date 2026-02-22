@@ -3,6 +3,8 @@ package org.source.utility.assign;
 import com.alibaba.ttl.threadpool.TtlExecutors;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.ObjectUtils;
+import org.source.utility.constant.Constants;
 import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.utils.Streams;
 import org.springframework.lang.Nullable;
@@ -33,8 +35,7 @@ public class Assign<E> {
     /**
      * 集合不可修改，只可以更新集合对象的值
      */
-    private Collection<E> mainData;
-    private final Predicate<E> filter;
+    private final Collection<E> mainData;
     private final int depth;
     private final List<Acquire<E, ?, ?>> acquires;
     private final List<Consumer<E>> assignValues;
@@ -50,6 +51,7 @@ public class Assign<E> {
 
     private Assign<E> superAssign;
 
+    @Getter
     private String name;
     /**
      * 多线程执行器
@@ -57,6 +59,8 @@ public class Assign<E> {
     @Nullable
     @Getter
     private Executor executor;
+    @Getter
+    private long timeout;
     /**
      * 资源计数器
      */
@@ -70,8 +74,8 @@ public class Assign<E> {
      */
     private InterruptStrategyEnum interruptStrategy;
 
-    public Assign(Collection<E> mainData, int depth, @Nullable Assign<E> superAssign, @Nullable Predicate<E> filter) {
-        this.mainData = List.copyOf(mainData);
+    public Assign(Collection<E> mainData, int depth, @Nullable Assign<E> superAssign) {
+        this.mainData = Collections.unmodifiableCollection(mainData);
         this.depth = depth;
         this.superAssign = superAssign;
         this.acquires = new ArrayList<>();
@@ -84,16 +88,16 @@ public class Assign<E> {
         if (Objects.nonNull(this.superAssign)) {
             this.superAssign.branches.add(this);
         }
-        this.filter = filter;
         this.subs = new ArrayList<>();
+        this.timeout = Constants.TIMEOUT_SECONDS_30;
     }
 
     public Assign(Collection<E> mainData) {
-        this(mainData, ROOT_DEPTH, null, null);
+        this(mainData, ROOT_DEPTH, null);
     }
 
     public Assign(Assign<E> superAssign) {
-        this(superAssign.mainData, superAssign.depth + ROOT_DEPTH, superAssign, null);
+        this(superAssign.mainData, superAssign.depth + ROOT_DEPTH, superAssign);
     }
 
     public <K, T> Acquire<E, K, T> addAcquire(Function<Collection<K>, Map<K, T>> fetcher) {
@@ -207,8 +211,17 @@ public class Assign<E> {
         return this;
     }
 
+    public Assign<E> timeout(long timeout) {
+        if (timeout <= 0) {
+            return this;
+        }
+        this.timeout = timeout;
+        return this;
+    }
+
     public Assign<E> addBranch(Predicate<E> filter) {
-        return new Assign<>(this.mainData, this.depth + 1, this, filter);
+        List<E> es = Streams.retain(this.mainData, filter).toList();
+        return new Assign<>(es, this.depth + 1, this);
     }
 
     public Assign<E> addBranch() {
@@ -226,7 +239,10 @@ public class Assign<E> {
     }
 
     public <K> Assign<E> addOperates(Function<E, K> keyGetter, Map<K, Consumer<Collection<E>>> keyOperates) {
-        Map<K, List<E>> keyMap = Streams.groupBy(this.mainData, keyGetter);
+        Map<K, List<E>> keyMap = Streams.groupBy(
+                this.mainData,
+                e -> Objects.requireNonNull(keyGetter.apply(e), "keyGetter cannot return null")
+        );
         Map<Consumer<Collection<E>>, List<E>> operatorDataMap = HashMap.newHashMap(keyMap.size());
         keyOperates.forEach((k, consumer) -> {
             List<E> es = keyMap.get(k);
@@ -297,18 +313,6 @@ public class Assign<E> {
     }
 
     public Assign<E> invoke() {
-        if (Objects.nonNull(this.superAssign)) {
-            if (InvokeStatusEnum.CREATED.equals(this.superAssign.status)) {
-                this.superAssign.invoke();
-            }
-            if (!InvokeStatusEnum.CREATED.equals(this.status)
-                    || this.superAssign.interruptStrategy.interrupt(this.superAssign.status)) {
-                return this;
-            }
-        }
-        if (Objects.nonNull(this.filter)) {
-            this.mainData = Streams.retain(this.mainData, filter).toList();
-        }
         if (CollectionUtils.isEmpty(this.mainData)) {
             this.status = InvokeStatusEnum.ALL_SUCCESS;
             return this;
@@ -336,25 +340,26 @@ public class Assign<E> {
     private void invokeMain() {
         this.mainData.forEach(e -> this.assignValues.forEach(a -> a.accept(e)));
         Assign.<Acquire<E, ?, ?>, Map<?, ?>>parallelExecute(this.acquires, this.functionRunVirtualExecutor(a -> a.fetch(this.mainData)),
-                this.executor, null, "Assign parallel fetch data exception");
+                this.executor, this.timeout, null, "Assign parallel fetch data exception");
         this.mainData.forEach(e -> this.acquires.forEach(a -> a.invoke(e)));
     }
 
     private void invokeBranches() {
         Assign.parallelExecute(this.branches, this.functionRunVirtualExecutor(Assign::invoke),
-                this.executor, a -> InvokeStatusEnum.CREATED.equals(a.status), "Assign parallel execute branches exception");
+                this.executor, this.timeout, a -> InvokeStatusEnum.CREATED.equals(a.status), "Assign parallel execute branches exception");
     }
 
     private void invokeSubs() {
         Assign.<Consumer<Collection<E>>, Void>parallelExecute(this.subs, this.functionRunVirtualExecutor(a -> {
             a.accept(this.mainData);
             return null;
-        }), this.executor, null, "Assign parallel execute invokeSubs exception");
+        }), this.executor, this.timeout, null, "Assign parallel execute invokeSubs exception");
     }
 
     static <T, R> void parallelExecute(Collection<T> ts,
                                        Function<T, R> function,
                                        @Nullable Executor executor,
+                                       @Nullable Long timeout,
                                        @Nullable Predicate<T> filter,
                                        @Nullable String errorMsg) {
         Stream<T> tStream = Streams.of(ts);
@@ -366,7 +371,8 @@ public class Assign<E> {
                 List<CompletableFuture<R>> completableFutureList = tStream
                         .map(t -> CompletableFuture.supplyAsync(() -> function.apply(t), executor))
                         .toList();
-                CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0])).join();
+                CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0]))
+                        .get(ObjectUtils.defaultIfNull(timeout, Constants.TIMEOUT_SECONDS_30), TimeUnit.SECONDS);
             } catch (Exception e) {
                 if (StringUtils.hasText(errorMsg)) {
                     log.error(errorMsg, e);

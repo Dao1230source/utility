@@ -52,6 +52,9 @@ public class Action<E, K, T> {
             return;
         }
         K key = this.keyGetter.apply(e);
+        if (Objects.isNull(key)) {
+            return;
+        }
         T t = ktMap.get(key);
         if (Objects.nonNull(t) && !CollectionUtils.isEmpty(this.assembles)
                 && (Objects.isNull(this.test) || this.test.test(t))) {

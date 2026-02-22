@@ -1,11 +1,9 @@
 package org.source.utility.constant;
 
+import lombok.experimental.UtilityClass;
+
+@UtilityClass
 public class Constants {
-
-    private Constants() {
-        throw new IllegalStateException("Utility class");
-    }
-
     public static final String GET = "get";
     public static final String SET = "set";
     public static final String IS = "is";
@@ -16,6 +14,15 @@ public class Constants {
     public static final String COLUMN_CREATE_TIME = "create_time";
     public static final String COLUMN_UPDATE_USER = "update_user";
     public static final String COLUMN_UPDATE_TIME = "update_time";
+
+    public static final long TIMEOUT_SECONDS_1 = 1;
+    public static final long TIMEOUT_SECONDS_3 = 3;
+    public static final long TIMEOUT_SECONDS_5 = 5;
+    public static final long TIMEOUT_SECONDS_10 = 10;
+    public static final long TIMEOUT_SECONDS_15 = 15;
+    public static final long TIMEOUT_SECONDS_30 = 30;
+    public static final long TIMEOUT_SECONDS_60 = 60;
+    public static final long TIMEOUT_SECONDS_120 = 120;
 
     public static final String DIAGONAL = "/";
     public static final String JODD = "jodd";

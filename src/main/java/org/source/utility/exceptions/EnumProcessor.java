@@ -14,13 +14,22 @@ import java.lang.reflect.ParameterizedType;
 import java.util.Collection;
 
 @SuppressWarnings("unchecked")
-public interface EnumProcessor<T extends BaseException> {
+public interface EnumProcessor<E extends BaseException> {
+    /**
+     * 枚举的 name() 方法
+     *
+     * @return 枚举的名称
+     */
+    String name();
+
     /**
      * enum code
      *
      * @return code
      */
-    String getCode();
+    default String getCode() {
+        return name();
+    }
 
     /**
      * enum message
@@ -33,11 +42,11 @@ public interface EnumProcessor<T extends BaseException> {
     @AllArgsConstructor
     @NoArgsConstructor
     @Data
-    class ExceptionConstructor<T extends BaseException> {
-        private Constructor<T> base;
-        private Constructor<T> baseAndExtra;
-        private Constructor<T> baseAndEx;
-        private Constructor<T> baseAndExAndExtra;
+    class ExceptionConstructor<E extends BaseException> {
+        private Constructor<E> base;
+        private Constructor<E> baseAndExtra;
+        private Constructor<E> baseAndEx;
+        private Constructor<E> baseAndExAndExtra;
     }
 
     /**
@@ -45,17 +54,17 @@ public interface EnumProcessor<T extends BaseException> {
      *
      * @return 构造器
      */
-    default ExceptionConstructor<T> exceptionConstructor() {
-        return (ExceptionConstructor<T>) ExceptionConstructorCache.CONSTRUCTOR_MAP.computeIfAbsent(this.getClass(), k -> {
+    default ExceptionConstructor<E> exceptionConstructor() {
+        return (ExceptionConstructor<E>) ExceptionConstructorCache.CONSTRUCTOR_MAP.computeIfAbsent(this.getClass(), k -> {
             ParameterizedType parameterizedType = Reflects.getParameterizedType(this.getClass(), EnumProcessor.class.getName());
             assert parameterizedType != null;
             Class<? extends BaseException> cls = (Class<? extends BaseException>) parameterizedType.getActualTypeArguments()[0];
             try {
-                return ExceptionConstructor.<T>builder()
-                        .base((Constructor<T>) cls.getConstructor(EnumProcessor.class))
-                        .baseAndExtra((Constructor<T>) cls.getConstructor(EnumProcessor.class, String.class, Object[].class))
-                        .baseAndEx((Constructor<T>) cls.getConstructor(EnumProcessor.class, Throwable.class))
-                        .baseAndExAndExtra((Constructor<T>) cls.getConstructor(EnumProcessor.class, Throwable.class, String.class, Object[].class))
+                return ExceptionConstructor.<E>builder()
+                        .base((Constructor<E>) cls.getConstructor(EnumProcessor.class))
+                        .baseAndExtra((Constructor<E>) cls.getConstructor(EnumProcessor.class, String.class, Object[].class))
+                        .baseAndEx((Constructor<E>) cls.getConstructor(EnumProcessor.class, Throwable.class))
+                        .baseAndExAndExtra((Constructor<E>) cls.getConstructor(EnumProcessor.class, Throwable.class, String.class, Object[].class))
                         .build();
             } catch (NoSuchMethodException e) {
                 throw new BaseException(BaseExceptionEnum.REFLECT_EXCEPTION, e);
@@ -68,7 +77,7 @@ public interface EnumProcessor<T extends BaseException> {
      *
      * @return BaseException
      */
-    default T except() {
+    default E except() {
         try {
             return this.exceptionConstructor().getBase().newInstance(this);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException ex) {
@@ -83,7 +92,7 @@ public interface EnumProcessor<T extends BaseException> {
      * @param objects      消息中占位符的具体值
      * @return BaseException
      */
-    default T except(String extraMessage, Object... objects) {
+    default E except(String extraMessage, Object... objects) {
         try {
             return this.exceptionConstructor().getBaseAndExtra().newInstance(this, extraMessage, objects);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
@@ -97,7 +106,7 @@ public interface EnumProcessor<T extends BaseException> {
      * @param e e
      * @return BaseException
      */
-    default T except(Throwable e) {
+    default E except(Throwable e) {
         try {
             return this.exceptionConstructor().getBaseAndEx().newInstance(this, e);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException ex) {
@@ -113,7 +122,7 @@ public interface EnumProcessor<T extends BaseException> {
      * @param objects      消息中占位符的具体值
      * @return BaseException
      */
-    default T except(Throwable e, String extraMessage, Object... objects) {
+    default E except(Throwable e, String extraMessage, Object... objects) {
         try {
             return this.exceptionConstructor().getBaseAndExAndExtra().newInstance(this, e, extraMessage, objects);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException ex) {

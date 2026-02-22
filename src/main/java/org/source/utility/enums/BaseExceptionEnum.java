@@ -6,13 +6,7 @@ import org.source.utility.exceptions.BaseException;
 import org.source.utility.exceptions.EnumProcessor;
 
 /**
- * <pre>
- * 枚举前缀：
- *    [系统][模块][类型]
- *    S:source
- *    G:global
- *    R:runtime,D：database,V:validate,
- * </pre>
+ *
  */
 @Getter
 @AllArgsConstructor
@@ -75,10 +69,5 @@ public enum BaseExceptionEnum implements EnumProcessor<BaseException> {
     ;;
 
     private final String message;
-
-    @Override
-    public String getCode() {
-        return name();
-    }
 
 }
