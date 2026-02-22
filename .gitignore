@@ -1,3 +1,7 @@
 /.idea/
 /target/
 /utility.iml
+/.classpath
+/.factorypath
+/.project
+/.settings/
