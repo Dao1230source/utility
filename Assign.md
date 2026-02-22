@@ -213,12 +213,13 @@ public void assignMultiAssemble() {
 public void assignBatch() {
     Collection<Object> orderList = new ArrayList<>();
     Assign.build(orderList)
-          .addAcquire((keys) -> new java.util.HashMap<>(), e -> null)
-          .batchSize(100)
-      .addAction(OrderDTO::getEmpCode)
-      .addAssemble(EmployeeDTO::getEmpName, OrderDTO::setEmpName)
-      .backAcquire().backAssign()
-      .invoke();
+            .addAcquire((keys) -> new java.util.HashMap<>(), e -> null)
+            .batchSize(100)
+            .addAction(OrderDTO::getEmpCode)
+            .addAssemble(EmployeeDTO::getEmpName, OrderDTO::setEmpName)
+            .backAcquire().backAssign()
+            .invoke();
+}
 ```
 
 ### 异常与中断策略
@@ -228,15 +229,16 @@ public void assignBatch() {
 public void assignWithException() {
     Collection<Object> orderList = new ArrayList<>();
     Assign.build(orderList)
-          .interruptStrategy(org.source.utility.assign.InterruptStrategyEnum.ANY)
-      .addAcquire(this::findEmployeesByEmpCodes, EmployeeDTO::getEmpCode)
-      .name("获取员工信息")
-      .throwException()
-      .exceptionHandler((order, ex) -> log.error("获取员工异常", ex))
-      .addAction(OrderDTO::getEmpCode)
-      .addAssemble(EmployeeDTO::getEmpName, OrderDTO::setEmpName)
-      .backAcquire().backAssign()
-      .invoke();
+            .interruptStrategy(org.source.utility.assign.InterruptStrategyEnum.ANY)
+            .addAcquire(this::findEmployeesByEmpCodes, EmployeeDTO::getEmpCode)
+            .name("获取员工信息")
+            .throwException()
+            .exceptionHandler((order, ex) -> log.error("获取员工异常", ex))
+            .addAction(OrderDTO::getEmpCode)
+            .addAssemble(EmployeeDTO::getEmpName, OrderDTO::setEmpName)
+            .backAcquire().backAssign()
+            .invoke();
+}
 ```
 
 ### 本地缓存
@@ -246,13 +248,14 @@ public void assignWithException() {
 public void assignWithCache() {
     Collection<Object> orderList = new ArrayList<>();
     Assign.build(orderList)
-          .addAcquire((keys) -> new java.util.HashMap<>(), e -> null)
-          .name("empCache")
-      .cache()
-      .addAction(OrderDTO::getEmpCode)
-      .addAssemble(EmployeeDTO::getEmpName, OrderDTO::setEmpName)
-      .backAcquire().backAssign()
-      .invoke();
+            .addAcquire((keys) -> new java.util.HashMap<>(), e -> null)
+            .name("empCache")
+            .cache()
+            .addAction(OrderDTO::getEmpCode)
+            .addAssemble(EmployeeDTO::getEmpName, OrderDTO::setEmpName)
+            .backAcquire().backAssign()
+            .invoke();
+}
 ```
 
 ### 条件分支
@@ -262,12 +265,13 @@ public void assignWithCache() {
 public void assignWithBranch() {
     Collection<Object> orderList = new ArrayList<>();
     Assign.build(orderList)
-          .addBranch(e -> true)
-          .addAcquire((keys) -> new java.util.HashMap<>(), e -> null)
-          .addAction(e -> null)
-          .addAssemble((e, t) -> {})
-          .backAcquire().backSuperlative()
-          .invoke();
+            .addBranch(e -> true)
+            .addAcquire((keys) -> new java.util.HashMap<>(), e -> null)
+            .addAction(e -> null)
+            .addAssemble((e, t) -> {
+            })
+            .backAcquire().backSuperlative()
+            .invoke();
 }
 ```
 
@@ -278,12 +282,14 @@ public void assignWithBranch() {
 public void assignWithSub() {
     Collection<Object> orderList = new ArrayList<>();
     Assign.build(orderList)
-          .addSub(list -> {})
-      .addAcquire(this::findEmployeesByEmpCodes, EmployeeDTO::getEmpCode)
-      .addAction(OrderDTO::getEmpCode)
-      .addAssemble(EmployeeDTO::getEmpName, OrderDTO::setEmpName)
-      .backAcquire().backAssign()
-      .invoke();
+            .addSub(list -> {
+            })
+            .addAcquire(this::findEmployeesByEmpCodes, EmployeeDTO::getEmpCode)
+            .addAction(OrderDTO::getEmpCode)
+            .addAssemble(EmployeeDTO::getEmpName, OrderDTO::setEmpName)
+            .backAcquire().backAssign()
+            .invoke();
+}
 ```
 
 ### 虚拟线程并行
@@ -293,12 +299,13 @@ public void assignWithSub() {
 public void assignVirtualThread() {
     Collection<Object> orderList = new ArrayList<>();
     Assign.build(orderList)
-          .parallelVirtual()
-      .addAcquire(this::findEmployeesByEmpCodes, EmployeeDTO::getEmpCode)
-      .addAction(OrderDTO::getEmpCode)
-      .addAssemble(EmployeeDTO::getEmpName, OrderDTO::setEmpName)
-      .backAcquire().backAssign()
-      .invoke();
+            .parallelVirtual()
+            .addAcquire(this::findEmployeesByEmpCodes, EmployeeDTO::getEmpCode)
+            .addAction(OrderDTO::getEmpCode)
+            .addAssemble(EmployeeDTO::getEmpName, OrderDTO::setEmpName)
+            .backAcquire().backAssign()
+            .invoke();
+}
 ```
 
 ### 单条查询获取
@@ -312,7 +319,7 @@ public void assignSingle() {
       .addAction(OrderDTO::getEmpCode)
       .addAssemble(EmployeeDTO::getEmpName, OrderDTO::setEmpName)
       .backAcquire().backAssign()
-      .invoke();
+      .invoke();}
 ```
 
 ### 基于主数据或额外数据获取
@@ -476,6 +483,9 @@ public void assignBranches() {
 5. **缓存策略**：对高频查询且结果稳定的 Acquire 开启 `cache` 并设置合理过期与容量
 6. **依赖编排**：有依赖关系时先执行 `invoke`，再级联构建后续 Acquire
 7. **数据过滤**：使用 `Action.filter` 过滤无效数据，避免脏数据赋值
+
+## demo
+更多使用案例详见 https://github.com/Dao1230source/demo/tree/main/utility/assign
 
 ## FAQ
 
