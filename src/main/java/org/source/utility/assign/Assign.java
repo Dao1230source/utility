@@ -1,11 +1,16 @@
 package org.source.utility.assign;
 
 import com.alibaba.ttl.threadpool.TtlExecutors;
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIncludeProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.source.utility.constant.Constants;
 import org.source.utility.enums.BaseExceptionEnum;
+import org.source.utility.utils.Jsons;
 import org.source.utility.utils.Streams;
 import org.springframework.lang.Nullable;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
@@ -14,10 +19,13 @@ import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.*;
 import java.util.stream.Stream;
 
 @Slf4j
+@JsonIncludeProperties({"name", "depth", "interruptStrategy", "executor", "timeout", "acquires", "branches"})
+@JsonPropertyOrder({"name", "depth", "interruptStrategy", "executor", "timeout", "acquires", "branches"})
 public class Assign<E> {
     private static final int ROOT_DEPTH = 1;
     private static final int PROCESSORS = Runtime.getRuntime().availableProcessors();
@@ -36,12 +44,17 @@ public class Assign<E> {
      * 集合不可修改，只可以更新集合对象的值
      */
     private final Collection<E> mainData;
+    @Getter
     private final int depth;
+    @JsonManagedReference
+    @Getter
     private final List<Acquire<E, ?, ?>> acquires;
     private final List<Consumer<E>> assignValues;
     /**
      * 分支：分支和主体有关联关系，可以通过 backSuper() 等方法返回
      */
+    @Getter
+    @JsonManagedReference
     private final List<Assign<E>> branches;
     /**
      * 子赋值程序，和主体是不相关的，对子体的mainData的引用修改不会影响主体，但子体中对 E 值的修改会影响主体
@@ -49,6 +62,7 @@ public class Assign<E> {
      */
     private final List<Consumer<Collection<E>>> subs;
 
+    @JsonBackReference
     private Assign<E> superAssign;
 
     @Getter
@@ -56,11 +70,10 @@ public class Assign<E> {
     /**
      * 多线程执行器
      */
-    @Nullable
     @Getter
-    private Executor executor;
+    private @Nullable Executor executor;
     @Getter
-    private long timeout;
+    private @Nullable Long timeout;
     /**
      * 资源计数器
      */
@@ -72,7 +85,12 @@ public class Assign<E> {
     /**
      * 中断执行的策略
      */
+    @Getter
     private InterruptStrategyEnum interruptStrategy;
+    /**
+     * 获取 acquire 的执行计数
+     */
+    AtomicInteger acquireCounter;
 
     public Assign(Collection<E> mainData, int depth, @Nullable Assign<E> superAssign) {
         this.mainData = Collections.unmodifiableCollection(mainData);
@@ -80,7 +98,7 @@ public class Assign<E> {
         this.superAssign = superAssign;
         this.acquires = new ArrayList<>();
         this.assignValues = new ArrayList<>();
-        this.name = String.valueOf(this.hashCode());
+        this.name = "Assign_" + this.hashCode();
         this.interruptStrategy = InterruptStrategyEnum.ANY;
         this.status = InvokeStatusEnum.CREATED;
         this.executor = null;
@@ -89,7 +107,7 @@ public class Assign<E> {
             this.superAssign.branches.add(this);
         }
         this.subs = new ArrayList<>();
-        this.timeout = Constants.TIMEOUT_SECONDS_30;
+        this.acquireCounter = new AtomicInteger(0);
     }
 
     public Assign(Collection<E> mainData) {
@@ -198,6 +216,9 @@ public class Assign<E> {
         } else {
             this.executor = DEFAULT_EXECUTOR;
         }
+        if (Objects.isNull(this.timeout)) {
+            this.timeout = Constants.TIMEOUT_SECONDS_30;
+        }
         return this;
     }
 
@@ -213,6 +234,7 @@ public class Assign<E> {
 
     public Assign<E> timeout(long timeout) {
         if (timeout <= 0) {
+            log.warn("timeout must be positive, got: {}, ignored", timeout);
             return this;
         }
         this.timeout = timeout;
@@ -334,6 +356,9 @@ public class Assign<E> {
         }
         this.invokeBranches();
         this.invokeSubs();
+        if (Objects.isNull(this.superAssign)) {
+            log.info("assign invoke report:{}", Jsons.str(this));
+        }
         return this;
     }
 

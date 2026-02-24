@@ -36,6 +36,7 @@ public enum BaseExceptionEnum implements EnumProcessor<BaseException> {
     FIELD_NAME_INVALID("字段名称不正确"),
     RECORD_NOT_FOUND("数据未找到"),
     RECORD_HAS_EXISTS("数据已存在"),
+    BATCHSIZE_MUST_BE_POSITIVE("批次数必须为正数"),
 
     /**
      * http request
