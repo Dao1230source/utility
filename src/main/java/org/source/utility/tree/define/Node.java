@@ -4,13 +4,12 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
-public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> {
+public interface Node<I extends Comparable<I>, E extends Element<I>, N extends Node<I, E, N>> {
+    @Nullable
     E getElement();
 
     void setElement(E element);
@@ -20,6 +19,7 @@ public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> {
      *
      * @return parent
      */
+    @Nullable
     N getParent();
 
     /**
@@ -30,12 +30,12 @@ public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> {
     List<N> getChildren();
 
     @JsonIgnore
-    default I getId() {
+    default @Nullable I getId() {
         return Node.getProperty(this, Element::getId);
     }
 
     @JsonIgnore
-    default I getParentId() {
+    default @Nullable I getParentId() {
         return Node.getProperty(this, Element::getParentId);
     }
 
@@ -49,18 +49,31 @@ public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> {
         return !CollectionUtils.isEmpty(this.getChildren());
     }
 
+    default void removeFromParent() {
+        N parent = this.getParent();
+        // 从父节点移除
+        if (Objects.isNull(parent)) {
+            return;
+        }
+        parent.removeChild(this);
+    }
+
+    void removeChild(@Nullable Node<I, E, N> child);
+
     /**
      * getProperty
      */
     @Nullable
-    static <I, E extends Element<I>, N extends Node<I, E, N>, V> V getProperty(Node<I, E, N> n, Function<E, V> getter) {
+    static <I extends Comparable<I>, E extends Element<I>, N extends Node<I, E, N>, V> V getProperty(
+            @Nullable Node<I, E, N> n, @Nullable Function<E, V> getter) {
         if (Objects.isNull(n) || Objects.isNull(n.getElement()) || Objects.isNull(getter)) {
             return null;
         }
         return getter.apply(n.getElement());
     }
 
-    static <I, E extends Element<I>, N extends Node<I, E, N>, V> void setProperty(Node<I, E, N> n, BiConsumer<E, V> setter, V value) {
+    static <I extends Comparable<I>, E extends Element<I>, N extends Node<I, E, N>, V> void setProperty(
+            @Nullable Node<I, E, N> n, @Nullable BiConsumer<E, V> setter, @Nullable V value) {
         if (Objects.isNull(n) || Objects.isNull(n.getElement()) || Objects.isNull(setter)) {
             return;
         }
@@ -77,16 +90,16 @@ public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> {
      * @param <N>           Node
      * @return list
      */
-    static <I, E extends Element<I>, N extends Node<I, E, N>> List<N> superiorNodes(N node, boolean includeItself) {
+    static <I extends Comparable<I>, E extends Element<I>, N extends Node<I, E, N>> List<N> superiorNodes(@Nullable N node, boolean includeItself) {
         List<N> list = new ArrayList<>();
-        if (Objects.isNull(node)) {
+        N current = node;
+        if (Objects.isNull(current)) {
             return list;
         }
-        N current = node;
         if (includeItself) {
             list.add(current);
         }
-        while (Objects.nonNull(current.getParent())) {
+        while (Objects.nonNull(current) && Objects.nonNull(current.getParent())) {
             current = current.getParent();
             list.add(current);
         }
@@ -102,19 +115,24 @@ public interface Node<I, E extends Element<I>, N extends Node<I, E, N>> {
      * @param <E>  E
      * @param <N>  Node
      */
-    static <I, E extends Element<I>, N extends Node<I, E, N>> List<N> recursiveChildren(N node, boolean includeItself) {
-        List<N> list = new ArrayList<>();
+    static <I extends Comparable<I>, E extends Element<I>, N extends Node<I, E, N>> List<N> recursiveChildren(@Nullable N node, boolean includeItself) {
+        List<N> result = new ArrayList<>();
         if (Objects.isNull(node)) {
-            return list;
+            return result;
         }
         if (includeItself) {
-            list.add(node);
+            result.add(node);
         }
-        if (CollectionUtils.isEmpty(node.getChildren())) {
-            return list;
+        // 使用迭代代替递归
+        Deque<N> queue = new LinkedList<>(node.getChildren());
+        while (!queue.isEmpty()) {
+            N current = queue.removeFirst();
+            result.add(current);
+            List<N> children = current.getChildren();
+            if (!CollectionUtils.isEmpty(children)) {
+                queue.addAll(children);
+            }
         }
-        list.addAll(node.getChildren());
-        node.getChildren().forEach(n -> list.addAll(recursiveChildren(n, includeItself)));
-        return list;
+        return result;
     }
 }

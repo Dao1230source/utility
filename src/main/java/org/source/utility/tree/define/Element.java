@@ -1,22 +1,21 @@
 package org.source.utility.tree.define;
 
 
-import lombok.NonNull;
+import org.springframework.lang.Nullable;
 
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
- * @author zengfugen
- */
+* @author zengfugen
+*/
 public interface Element<I> {
     /**
      * get id
      *
      * @return id
      */
-    @NonNull
     I getId();
 
     /**
@@ -24,9 +23,10 @@ public interface Element<I> {
      *
      * @return parentId
      */
+    @Nullable
     I getParentId();
 
-    static <T extends Comparable<T>> int nullLast(T first, T second, BiFunction<T, T, Integer> comparator) {
+    static <T extends Comparable<T>> int nullLast(@Nullable T first, @Nullable T second, BiFunction<T, T, Integer> comparator) {
         // null 排最后
         if (Objects.isNull(first)) {
             return 1;
@@ -40,8 +40,8 @@ public interface Element<I> {
         return comparator.apply(first, second);
     }
 
-    static <I extends Comparable<I>, E extends EnhanceElement<I>, S extends Comparable<S>> int comparator(E first, E second,
-                                                                                                          Function<E, S> sortedGetter) {
+    static <I extends Comparable<I>, E extends EnhanceElement<I>, S extends Comparable<S>> int comparator(
+            @Nullable E first, @Nullable E second, @Nullable Function<E, S> sortedGetter) {
         return nullLast(first, second, (f, s) -> {
             int res = 0;
             if (Objects.nonNull(sortedGetter)) {
@@ -50,7 +50,7 @@ public interface Element<I> {
                 res = nullLast(firstSorted, secondSorted, S::compareTo);
             }
             if (res == 0) {
-                res = first.getId().compareTo(second.getId());
+                res = f.getId().compareTo(s.getId());
             }
             return res;
         });

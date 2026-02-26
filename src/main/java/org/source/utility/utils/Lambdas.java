@@ -45,7 +45,7 @@ public class Lambdas {
     }
 
     public static String getFieldName(String methodName) {
-        if (null == methodName || methodName.isEmpty()) {
+        if (methodName.isEmpty()) {
             return methodName;
         } else if (methodName.startsWith(Constants.GET)) {
             return Strings.removePrefixAndLowerFirst(methodName, Constants.GET);

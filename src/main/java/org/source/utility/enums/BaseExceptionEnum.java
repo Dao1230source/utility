@@ -17,11 +17,13 @@ public enum BaseExceptionEnum implements EnumProcessor<BaseException> {
      */
     RUNTIME_EXCEPTION("服务异常"),
     SYSTEM_EXCEPTION("系统异常"),
+    CIRCULAR_REFERENCE_EXCEPTION("循环引用"),
     /**
      * utility
      */
     RESOLVE_S_FUNCTION_EXCEPTION("解析SFunction异常"),
     REFLECT_EXCEPTION("反射方法异常"),
+    LAMBDA_FIELD_NAME_NOT_FOUND("lambdas 获取fieldName失败"),
 
     /**
      * Assert
@@ -67,7 +69,11 @@ public enum BaseExceptionEnum implements EnumProcessor<BaseException> {
      * thread
      */
     THREAD_INTERRUPTED("thread interrupted"),
-    ;;
+    /**
+     * tree
+     */
+    MERGE_EXCEPTION("merge_exception"),
+    ;
 
     private final String message;
 
