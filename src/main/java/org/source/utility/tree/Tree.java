@@ -11,7 +11,6 @@ import org.source.utility.tree.define.Node;
 import org.source.utility.utils.Jsons;
 import org.source.utility.utils.Streams;
 import org.source.utility.utils.UnionFind;
-import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
@@ -57,41 +56,41 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      * 源元素集合
      * 存储所有通过 add() 方法添加的源元素，用于序列化和遍历
      */
-    private final List<E> sourceElements;
+    private final List<E> sourceElements = new ArrayList<>(32);
 
     /**
      * 节点 ID 映射表
      * 用于快速查找节点，key 为节点 ID，value 为对应的节点对象
      * 采用 ConcurrentHashMap 确保并发安全性
      */
-    private final Map<I, N> idMap;
+    private final Map<I, N> idMap = new ConcurrentHashMap<>(32);
 
-    /**
-     * 树的根节点
-     * 所有父节点为空的节点都会以此作为父节点
-     */
-    @NonNull
-    private final N root;
+    private ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
      * 写操作锁
      * 保护所有修改操作：add、remove、clear
      */
-    private final Lock writeLock;
+    private final Lock writeLock = this.lock.writeLock();
 
     /**
      * 读操作锁
      * 保护所有查询操作：find、get、getById
      */
-    private final Lock readLock;
+    private final Lock readLock = this.lock.readLock();
 
     /**
      * 并查集，用于循环引用检测
      * 维护所有节点的连通关系，用于检测添加节点时是否会形成循环
      * 采用延迟初始化：root 节点在第一次 add() 时才添加到并查集中
      */
-    private final UnionFind<I> unionFind;
+    private final UnionFind<I> unionFind = new UnionFind<>();
 
+    /**
+     * 树的根节点
+     * 所有父节点为空的节点都会以此作为父节点
+     */
+    private final N root;
     /**
      * 节点创建后的处理器
      * 在节点创建完成后、添加到树之前调用
@@ -104,25 +103,24 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      * 默认：保留新节点
      */
     private @Nullable BinaryOperator<N> mergeHandler;
-    private MergeReturnNullStrategyEnum mergeReturnNullStrategy;
+    private MergeReturnNullStrategyEnum mergeReturnNullStrategy = MergeReturnNullStrategyEnum.RETAIN_NEW;
 
     /**
      * 节点添加后的处理器
      * 在节点添加到树之后调用
      */
     private @Nullable BiConsumer<N, N> afterAddHandler;
-
     /**
      * ID 获取函数
      * 从元素中提取 ID，默认调用 element.getId()
      */
-    private Function<N, I> idGetter;
+    private Function<N, I> idGetter = N::getId;
 
     /**
      * 父节点 ID 获取函数
      * 从元素中提取父节点 ID，默认调用 element.getParentId()
      */
-    private Function<N, I> parentIdGetter;
+    private Function<N, I> parentIdGetter = N::getParentId;
 
     /**
      * 构造函数
@@ -135,15 +133,6 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      */
     protected Tree(N root) {
         this.root = root;
-        this.sourceElements = new ArrayList<>(32);
-        this.idMap = new ConcurrentHashMap<>(32);
-        this.mergeReturnNullStrategy = MergeReturnNullStrategyEnum.RETAIN_NEW;
-        this.idGetter = N::getId;
-        this.parentIdGetter = N::getParentId;
-        this.unionFind = new UnionFind<>();
-        ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-        this.writeLock = lock.writeLock();
-        this.readLock = lock.readLock();
     }
 
     /**
@@ -204,7 +193,6 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
             return root;
         }
         List<N> toAddNodes = Streams.map(es, e -> {
-            this.getSourceElements().add(e);
             N n = this.getRoot().emptyNode();
             n.setElement(e);
             if (Objects.nonNull(this.getAfterCreateHandler())) {
@@ -221,6 +209,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
             I parentId = this.getParentIdGetter().apply(node);
             N parent = this.getParent(parentId);
             N addedChild = parent.addChild(node);
+            // 如果添加失败，记录警告
             if (Objects.isNull(addedChild)) {
                 log.warn("Node: {} does not added to parent: {}.", node.getId(), parent.getId());
             } else {
@@ -230,12 +219,8 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         // 使用并查集检测循环引用
         this.detectCircularReferences(cachedNodes);
         // 此时节点已加载完毕
-        cachedNodes.forEach(node -> {
-            node.nodeHandler();
-            if (Objects.nonNull(this.getAfterAddHandler())) {
-                this.getAfterAddHandler().accept(node, node.getParent());
-            }
-        });
+        cachedNodes.forEach(this::doAfter);
+        this.getSourceElements().addAll(es);
         return root;
     }
 
@@ -269,6 +254,13 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         }
         // 将节点和父节点加入同一个集合
         this.unionFind.union(id, parentNodeId);
+    }
+
+    protected void doAfter(N node) {
+        node.nodeHandler();
+        if (Objects.nonNull(node.getParent()) && Objects.nonNull(this.getAfterAddHandler())) {
+            this.getAfterAddHandler().accept(node, node.getParent());
+        }
     }
 
     /**
@@ -446,7 +438,52 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         }
     }
 
-    // todo 更新节点数据的方法
+    /**
+     * 更新节点
+     *
+     * @param id      节点 ID
+     * @param updater 更新函数
+     * @return 是否成功更新节点
+     */
+    public boolean update(I id, Consumer<N> updater) {
+        this.writeLock.lock();
+        try {
+            return this.doUpdate(id, updater);
+        } finally {
+            this.writeLock.unlock();
+        }
+    }
+
+    public long update(Collection<I> ids, Consumer<N> updater) {
+        this.writeLock.lock();
+        try {
+            return Streams.of(ids).map(i -> this.doUpdate(i, updater)).filter(Boolean.TRUE::equals).count();
+        } finally {
+            this.writeLock.unlock();
+        }
+    }
+
+    /**
+     * 更新节点
+     * updater 不能更新 ID 的值
+     *
+     * @param id      节点 ID
+     * @param updater 更新函数
+     * @return 是否成功更新节点
+     */
+    protected boolean doUpdate(I id, Consumer<N> updater) {
+        N n = this.idMap.get(id);
+        if (Objects.isNull(n)) {
+            return false;
+        }
+        updater.accept(n);
+        // 验证 ID 未被修改
+        if (!Objects.equals(id, n.getId())) {
+            throw BaseExceptionEnum.TREE_CAN_NOT_UPDATE_ID.except("old id:{}, new id:{}", id, n.getId());
+        }
+        this.doAfter(n);
+        return true;
+    }
 
     /**
      * 获取树中的节点数量
@@ -501,10 +538,15 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      */
     public <I2 extends Comparable<I2>, E2 extends Element<I2>, N2 extends AbstractNode<I2, E2, N2>, T2 extends Tree<I2, E2, N2>> T2 cast(
             Supplier<T2> emptyTreeSupplier, Function<E, E2> eleMapper) {
-        T2 emptyTree2 = emptyTreeSupplier.get();
-        List<E2> list = Streams.of(this.getSourceElements()).map(eleMapper).toList();
-        emptyTree2.add(list);
-        return emptyTree2;
+        this.writeLock.unlock();
+        try {
+            T2 emptyTree2 = emptyTreeSupplier.get();
+            List<E2> list = Streams.of(this.getSourceElements()).map(eleMapper).toList();
+            emptyTree2.add(list);
+            return emptyTree2;
+        } finally {
+            this.writeLock.unlock();
+        }
     }
 
     /**
