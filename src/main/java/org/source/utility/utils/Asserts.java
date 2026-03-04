@@ -1,6 +1,7 @@
 package org.source.utility.utils;
 
 import lombok.experimental.UtilityClass;
+import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -21,11 +22,11 @@ public class Asserts {
         isTrue(!expression, exceptionSupplier);
     }
 
-    public static <T, E extends RuntimeException> void isNull(T t, Supplier<E> exceptionSupplier) {
+    public static <T, E extends RuntimeException> void isNull(@Nullable T t, Supplier<E> exceptionSupplier) {
         isTrue(Objects.isNull(t), exceptionSupplier);
     }
 
-    public static <T, E extends RuntimeException> void nonNull(T t, Supplier<E> exceptionSupplier) {
+    public static <T, E extends RuntimeException> void nonNull(@Nullable T t, Supplier<E> exceptionSupplier) {
         isTrue(Objects.nonNull(t), exceptionSupplier);
     }
 
@@ -45,12 +46,12 @@ public class Asserts {
         isTrue(CollectionUtils.isEmpty(ts), exceptionSupplier);
     }
 
-    public static <T, E extends RuntimeException> void notEmpty(T[] ts, Supplier<E> exceptionSupplier) {
-        isTrue(null != ts && ts.length != 0, exceptionSupplier);
+    public static <T, E extends RuntimeException> void notEmpty(@Nullable T[] ts, Supplier<E> exceptionSupplier) {
+        isTrue(Objects.nonNull(ts) && ts.length != 0, exceptionSupplier);
     }
 
-    public static <T, E extends RuntimeException> void isEmpty(T[] ts, Supplier<E> exceptionSupplier) {
-        isFalse(null != ts && ts.length != 0, exceptionSupplier);
+    public static <T, E extends RuntimeException> void isEmpty(@Nullable T[] ts, Supplier<E> exceptionSupplier) {
+        isFalse(Objects.isNull(ts) || ts.length == 0, exceptionSupplier);
     }
 
 }

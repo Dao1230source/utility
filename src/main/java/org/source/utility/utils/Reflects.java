@@ -5,6 +5,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.source.utility.enums.BaseExceptionEnum;
 import org.springframework.aop.support.AopUtils;
+import org.springframework.lang.Nullable;
 
 import java.beans.BeanInfo;
 import java.beans.IntrospectionException;
@@ -69,7 +70,7 @@ public class Reflects {
      * @param <T>  t
      * @return 参数化类型
      */
-    public static <T extends Type> ParameterizedType getParameterizedType(T type, String name) {
+    public static <T extends Type> @Nullable ParameterizedType getParameterizedType(T type, String name) {
         if (type instanceof ParameterizedType parameterizedType) {
             if (parameterizedType.getRawType().getTypeName().equals(name)) {
                 return parameterizedType;
@@ -119,7 +120,7 @@ public class Reflects {
         return Arrays.stream(fields).filter(f -> predicate.test(f, t)).toArray(Field[]::new);
     }
 
-    public static <E> Field getFieldByName(E e, String fieldName) {
+    public static <E> @Nullable Field getFieldByName(E e, String fieldName) {
         try {
             return getFieldByNameThrow(e, fieldName);
         } catch (NoSuchFieldException ex) {
@@ -154,8 +155,7 @@ public class Reflects {
         try {
             setFieldValueThrow(t, field, value);
         } catch (IntrospectionException | InvocationTargetException | IllegalAccessException e) {
-            throw BaseExceptionEnum.REFLECT_EXCEPTION.except(
-                    Strings.format("setFieldValue({},{},{})", t.getClass().getName(), field.getName(), value), e);
+            throw BaseExceptionEnum.REFLECT_EXCEPTION.newException(e, "setFieldValue({},{},{})", t.getClass().getName(), field.getName(), value);
         }
     }
 
@@ -163,8 +163,7 @@ public class Reflects {
         try {
             setFieldValueThrow(t, fieldName, value);
         } catch (IntrospectionException | InvocationTargetException | IllegalAccessException e) {
-            throw BaseExceptionEnum.REFLECT_EXCEPTION.except(
-                    Strings.format("setFieldValue({},{},{})", t.getClass().getName(), fieldName, value), e);
+            throw BaseExceptionEnum.REFLECT_EXCEPTION.newException(e, "setFieldValue({},{},{})", t.getClass().getName(), fieldName, value);
         }
     }
 
@@ -193,8 +192,7 @@ public class Reflects {
             return getFieldValueThrow(t, field);
         } catch (InvocationTargetException | IllegalAccessException |
                  IntrospectionException e) {
-            throw BaseExceptionEnum.REFLECT_EXCEPTION.except(
-                    Strings.format("getFieldValue({},{})", t.getClass().getName(), field.getName()), e);
+            throw BaseExceptionEnum.REFLECT_EXCEPTION.newException(e, "getFieldValue({},{})", t.getClass().getName(), field.getName());
         }
     }
 
@@ -203,8 +201,7 @@ public class Reflects {
             return getFieldValueThrow(t, fieldName);
         } catch (InvocationTargetException | IllegalAccessException |
                  IntrospectionException e) {
-            throw BaseExceptionEnum.REFLECT_EXCEPTION.except(
-                    Strings.format("getFieldValue({},{})", t.getClass().getName(), fieldName), e);
+            throw BaseExceptionEnum.REFLECT_EXCEPTION.newException(e, "getFieldValue({},{})", t.getClass().getName(), fieldName);
         }
     }
 
@@ -245,7 +242,7 @@ public class Reflects {
         try {
             return classForNameThrow(className);
         } catch (ClassNotFoundException e) {
-            throw BaseExceptionEnum.REFLECT_EXCEPTION.except(Strings.format("no class for name:{}", className), e);
+            throw BaseExceptionEnum.REFLECT_EXCEPTION.newException(e, "no class for name:{}", className);
         }
     }
 
@@ -280,7 +277,7 @@ public class Reflects {
             return tClass.getDeclaredConstructor().newInstance();
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
                  NoSuchMethodException e) {
-            throw BaseExceptionEnum.REFLECT_EXCEPTION.except(Strings.format("newInstance:{}", tClass.getName()), e);
+            throw BaseExceptionEnum.REFLECT_EXCEPTION.newException(e, "newInstance:{}", tClass.getName());
         }
     }
 

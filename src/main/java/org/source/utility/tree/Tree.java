@@ -4,10 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.source.utility.enums.BaseExceptionEnum;
-import org.source.utility.tree.define.AbstractNode;
-import org.source.utility.tree.define.Element;
-import org.source.utility.tree.define.MergeReturnNullStrategyEnum;
-import org.source.utility.tree.define.Node;
+import org.source.utility.exceptions.BaseException;
+import org.source.utility.tree.define.*;
 import org.source.utility.utils.Jsons;
 import org.source.utility.utils.Streams;
 import org.source.utility.utils.UnionFind;
@@ -102,9 +100,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      * 当添加的节点 ID 已存在时，用此处理器合并新旧节点
      * 默认：保留新节点
      */
-    private @Nullable BinaryOperator<N> mergeHandler;
-    private MergeReturnNullStrategyEnum mergeReturnNullStrategy = MergeReturnNullStrategyEnum.RETAIN_NEW;
-
+    private @Nullable BinaryOperator<N> mergeHandler = (n, old) -> n;
     /**
      * 节点添加后的处理器
      * 在节点添加到树之后调用
@@ -201,25 +197,31 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
             return n;
         }).toList();
         // 先将所有元素缓存，避免有可能父级数据在后，当前元素加入时找不到父级的情况
-        List<N> cachedNodes = Streams.map(toAddNodes, n ->
-                AbstractNode.mergeNode(n, this.getIdGetter(), this.getIdMap(), this.getMergeHandler(), this.getMergeReturnNullStrategy())
+        List<MergeNodeResult<I, E, N>> mergedResult = Streams.map(toAddNodes, n ->
+                AbstractNode.mergeNode(n, this.getIdGetter(), this.getIdMap(), this.getMergeHandler())
         ).filter(Objects::nonNull).toList();
         // 添加节点
-        cachedNodes.forEach(node -> {
+        List<N> mergedNodes = Streams.of(mergedResult).map(MergeNodeResult::getResultNode).filter(obj -> true).toList();
+        mergedNodes.forEach(node -> {
             I parentId = this.getParentIdGetter().apply(node);
             N parent = this.getParent(parentId);
-            N addedChild = parent.addChild(node);
-            // 如果添加失败，记录警告
-            if (Objects.isNull(addedChild)) {
-                log.warn("Node: {} does not added to parent: {}.", node.getId(), parent.getId());
-            } else {
-                addedChild.appendToParent(parent);
-            }
+            N addedChild = parent.addChild(node, this.mergeHandler);
+            addedChild.appendToParent(parent);
+            this.idMap.put(addedChild.getId(), addedChild);
         });
         // 使用并查集检测循环引用
-        this.detectCircularReferences(cachedNodes);
+        List<N> addedNodes = Streams.of(mergedResult).filter(k -> MergeResultTypeEnum.ADD_NEW.equals(k.getResultType()))
+                .map(MergeNodeResult::getResultNode).toList();
+        try {
+            this.detectCircularReferences(addedNodes);
+        } catch (BaseException e) {
+            // 检测到循环引用时，删除已添加的 mergedResult 节点以保持树的一致性
+            addedNodes.forEach(this::removeNode);
+            // 重新抛出异常
+            throw e;
+        }
         // 此时节点已加载完毕
-        cachedNodes.forEach(this::doAfter);
+        mergedNodes.forEach(this::doAfter);
         this.getSourceElements().addAll(es);
         return root;
     }
@@ -249,7 +251,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         }
         // 如果节点和父节点已经在同一个集合中，说明存在循环
         if (this.unionFind.find(id).equals(this.unionFind.find(parentNodeId))) {
-            throw BaseExceptionEnum.CIRCULAR_REFERENCE_EXCEPTION.except(
+            BaseExceptionEnum.CIRCULAR_REFERENCE_EXCEPTION.throwException(
                     "Circular reference detected: node {} cannot be added as child of {}", id, parentNodeId);
         }
         // 将节点和父节点加入同一个集合
@@ -334,7 +336,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      * @param id 节点 ID
      * @return 对应的节点，如果找不到则返回 null
      */
-    public N getById(I id) {
+    public @Nullable N getById(I id) {
         readLock.lock();
         try {
             return this.idMap.get(id);
@@ -431,11 +433,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
                 newUnionFind.union(id, parentId);
             }
         });
-
-        // 替换并查集
-        synchronized (this.unionFind) {
-            this.unionFind.rebuild(newUnionFind);
-        }
+        this.unionFind.rebuild(newUnionFind);
     }
 
     /**
@@ -479,7 +477,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         updater.accept(n);
         // 验证 ID 未被修改
         if (!Objects.equals(id, n.getId())) {
-            throw BaseExceptionEnum.TREE_CAN_NOT_UPDATE_ID.except("old id:{}, new id:{}", id, n.getId());
+            BaseExceptionEnum.TREE_CAN_NOT_UPDATE_ID.throwException("old id:{}, new id:{}", id, n.getId());
         }
         this.doAfter(n);
         return true;
@@ -538,7 +536,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      */
     public <I2 extends Comparable<I2>, E2 extends Element<I2>, N2 extends AbstractNode<I2, E2, N2>, T2 extends Tree<I2, E2, N2>> T2 cast(
             Supplier<T2> emptyTreeSupplier, Function<E, E2> eleMapper) {
-        this.writeLock.unlock();
+        this.writeLock.lock();
         try {
             T2 emptyTree2 = emptyTreeSupplier.get();
             List<E2> list = Streams.of(this.getSourceElements()).map(eleMapper).toList();

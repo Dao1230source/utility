@@ -2,13 +2,14 @@ package org.source.utility.tree;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.source.utility.tree.define.AbstractNode;
-import org.source.utility.tree.define.Element;
-import org.source.utility.tree.define.EnhanceElement;
+import org.source.utility.enums.BaseExceptionEnum;
+import org.source.utility.tree.define.*;
 import org.source.utility.utils.Streams;
+import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
 import java.util.*;
+import java.util.function.BinaryOperator;
 
 
 /**
@@ -38,7 +39,8 @@ import java.util.*;
  * @since 1.0
  */
 @JsonIgnoreProperties(value = {"comparator"})
-public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N extends EnhanceNode<I, E, N>> extends AbstractNode<I, E, N> {
+public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N extends EnhanceNode<I, E, N>>
+        extends AbstractNode<I, E, N> implements Comparable<EnhanceNode<I, E, N>> {
     /**
      * 多个父节点集合
      * 支持一个节点有多个父节点
@@ -80,9 +82,15 @@ public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N
      * @param child 要添加的子节点
      */
     @Override
-    public N addChild(N child) {
-        this.children.add(child);
-        return child;
+    public N addChild(N child, @Nullable BinaryOperator<N> mergeHandler) {
+        // 先通过父类逻辑处理合并
+        Map<I, N> childrenMap = Streams.toMap(this.children, N::getId);
+        MergeNodeResult<I, E, N> result = mergeNode(child, Node::getId, childrenMap, mergeHandler);
+        N resultNode = result.getResultNode();
+        BaseExceptionEnum.NOT_NULL.nonNull(resultNode, "merged result node must not null");
+        BaseExceptionEnum.NOT_NULL.nonNull(resultNode.getId(), "merged result node id must not null");
+        this.children.add(resultNode);
+        return result.getResultNode();
     }
 
     /**
@@ -163,5 +171,28 @@ public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N
             return;
         }
         parents1.forEach(p -> p.removeChild(this));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public int compareTo(EnhanceNode<I, E, N> o) {
+        return this.comparator.compare((N) this, (N) o);
+    }
+
+    @Override
+    public boolean equals(@Nullable Object o) {
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (!super.equals(o)) {
+            return false;
+        }
+        EnhanceNode<?, ?, ?> that = (EnhanceNode<?, ?, ?>) o;
+        return Objects.equals(this.getElement(), that.getElement()) && Objects.equals(this.parents, that.parents);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(this.getElement(), this.parents);
     }
 }

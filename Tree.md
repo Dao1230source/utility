@@ -1,8 +1,8 @@
 # Tree 组件完整指南
 
-**版本**: 2.0
-**更新时间**: 2026-02-26
-**状态**: 生产就绪（已修复关键bug）
+**版本**: 2.1
+**更新时间**: 2026-03-04
+**状态**: ✅ 生产就绪
 
 ---
 
@@ -17,13 +17,12 @@
 7. [进阶用法](#进阶用法)
 8. [最佳实践](#最佳实践)
 9. [代码示例](#代码示例)
-10. [修复状态](#修复状态)
 
 ---
 
 ## 概述
 
-**Tree** 是一个通用的树形数据结构容器，支持灵活的树形和DAG（有向无环图）结构。它提供了并发安全、循环引用检测、节点合并策略等高级功能，适用于组织结构、分类体系、菜单系统等多种场景。
+**Tree** 是一个通用的树形数据结构容器，支持灵活的树形和DAG（有向无环图）结构。它提供了并发安全、循环引用检测等高级功能，适用于组织结构、分类体系、菜单系统等多种场景。
 
 ### 为什么开发这个组件？
 
@@ -34,7 +33,6 @@
 - ✅ **泛型设计** - 支持任意ID类型和元素类型
 - ✅ **并发安全** - 基于读写锁的线程安全实现（支持1000+并发操作）
 - ✅ **循环检测** - 使用Union-Find算法自动检测循环引用
-- ✅ **灵活合并** - 支持多种节点冲突处理策略
 - ✅ **类型多样** - 提供默认、深度、扁平、增强等多种节点实现
 - ✅ **JSON友好** - 完整的Jackson序列化支持
 - ✅ **高性能** - O(1)的ID查询，O(n·α(n))的循环检测
@@ -44,6 +42,9 @@
 - **I** - 唯一键，元素的唯一标识，可以是任意可比较的类型（String、Integer等）
 - **E extends Element<I>** - 挂载在节点上的元素，树中实际存储的业务数据
 - **N extends AbstractNode<I, E, N>** - 节点，树中的节点对象，包含元素和关系信息
+
+### demo
+更多使用案例详见 https://github.com/Dao1230source/demo/tree/main/utility/tree
 
 ---
 
@@ -103,26 +104,9 @@
 - 自动处理复杂的循环场景
 - 时间复杂度接近O(n)（α为逆阿克曼函数，实际可视为常数）
 
-### 3. 节点合并策略
+### 3. 处理器机制（2个钩子点）
 
-当添加的节点ID已存在时，支持五种处理策略：
-
-| 策略 | 枚举值 | 行为 | 返回值 | 场景 |
-|------|--------|------|--------|------|
-| 保留新值 | `RETAIN_NEW` | 用新节点替换旧节点 | 新节点 | 数据更新 |
-| 保留旧值 | `RETAIN_OLD` | 保留旧节点，忽略新节点 | 旧节点 | 去重操作 |
-| 自定义合并 | `mergeHandler` | 执行自定义合并函数 | 合并结果 | 数据聚合 |
-| 抛异常 | `THROW_EXCEPTION` | 抛出异常中断 | 异常 | 严格模式 |
-| 删除旧值 | `REMOVE_OLD` | 删除旧节点 | null | 清理冗余 |
-
-**修复说明** ✅：
-- 2.0版本已修复返回值逻辑
-- 现在返回的是实际存储的值，而非Map.put()的返回值
-- 各策略返回值含义清晰一致
-
-### 4. 处理器机制（3个钩子点）
-
-Tree提供三个处理器钩子点，用于自定义业务逻辑：
+Tree提供两个处理器钩子点，用于自定义业务逻辑：
 
 ```java
 // 1️⃣ 节点创建后处理器
@@ -131,14 +115,7 @@ tree.setAfterCreateHandler(node -> {
     node.getElement().setCreateTime(System.currentTimeMillis());
 });
 
-// 2️⃣ 节点合并处理器
-// 当添加的节点ID已存在时，用此处理器合并新旧节点
-tree.setMergeHandler((newNode, oldNode) -> {
-    newNode.getElement().mergeData(oldNode.getElement());
-    return newNode;
-});
-
-// 3️⃣ 节点添加后处理器
+// 2️⃣ 节点添加后处理器
 // 在节点添加到树后调用，可获得parent信息
 tree.setAfterAddHandler((node, parent) -> {
     node.getElement().setLevel(
@@ -218,8 +195,8 @@ add(elements)
       ├─ 步骤2: 缓存节点（解决父级在后问题）
       │   ├─ for each n in toAddNodes:
       │   │   ├─ id = idGetter(n)
-      │   │   └─ mergeNode(id, n, idMap, ...)
-      │   └─ cachedNodes: List<N> ✅ Bug1已修复
+      │   │   └─ createAndCacheNode(id, n, idMap)
+      │   └─ cachedNodes: List<N>
       │
       ├─ 步骤3: 建立父子关系
       │   ├─ for each node in cachedNodes:
@@ -322,7 +299,7 @@ rootIsZero=true 时（从根向下）：
      A1            ← A1的深度是2
 
 rootIsZero=false 时（从叶向上）：
-        root       ← 根节点深度是2 
+        root       ← 根节点深度是2
         /  \
        A    B      ← A的深度是1，B是叶子节点深度是0
       /
@@ -444,10 +421,7 @@ public class DeptElement implements Element<Integer> {
 Tree<Integer, DeptElement, DefaultNode<Integer, DeptElement>> tree =
     Tree.of(new DefaultNode<>());
 
-// 方式2：配置合并策略（可选）
-tree.setMergeReturnNullStrategy(MergeReturnNullStrategyEnum.RETAIN_NEW);
-
-// 方式3：配置处理器（可选）
+// 方式2：配置处理器（可选）
 tree.setAfterAddHandler((node, parent) -> {
     node.getElement().setLevel(
         parent.getElement() == null ? 0 :
@@ -524,54 +498,6 @@ tree.setParentIdGetter(node -> {
 });
 ```
 
-#### 自定义合并策略
-
-```java
-// 当ID冲突时，执行自定义合并
-tree.setMergeHandler((newNode, oldNode) -> {
-    // 合并旧节点的数据到新节点
-    DeptElement newEle = newNode.getElement();
-    DeptElement oldEle = oldNode.getElement();
-
-    // 保留创建时间
-    if (newEle.getCreateTime() == null) {
-        newEle.setCreateTime(oldEle.getCreateTime());
-    }
-
-    // 合并其他字段...
-    return newNode;  // 返回合并后的节点
-});
-```
-
-#### 处理器链
-
-```java
-// 1️⃣ 创建后处理器
-tree.setAfterCreateHandler(node -> {
-    // 初始化默认值
-    node.getElement().setCreateTime(System.currentTimeMillis());
-    node.getElement().setStatus("ACTIVE");
-});
-
-// 2️⃣ 添加后处理器
-tree.setAfterAddHandler((node, parent) -> {
-    // 计算派生属性
-    if (parent.getElement() != null) {
-        node.getElement().setLevel(
-            parent.getElement().getLevel() + 1
-        );
-        node.getElement().setPath(
-            parent.getElement().getPath() + "/" + node.getId()
-        );
-    }
-
-    // 验证数据
-    if (node.getElement().getName().isEmpty()) {
-        throw new IllegalArgumentException("Name cannot be empty");
-    }
-});
-```
-
 ---
 
 ## API 参考
@@ -590,11 +516,6 @@ tree.setAfterAddHandler((node, parent) -> {
 | `size()` | - | int | O(1) | 获取树中节点数 |
 | `forEach(consumer)` | BiConsumer | void | O(n) | 遍历所有节点 |
 | `cast(supplier, mapper)` | 两个函数 | Tree | O(n) | 类型转换，创建新树 |
-
-**线程安全说明：**
-- ✅ add/remove/clear 获取writeLock（独占）
-- ✅ find/get/getById/forEach 获取readLock（共享）
-- ✅ 支持1000+并发操作
 
 ### AbstractNode API
 
@@ -1097,106 +1018,6 @@ public class MenuExample {
 
 ---
 
-## 修复状态
-
-### 🔧 已修复的Bug
-
-#### Bug #1：AbstractNode.mergeNode() 返回值逻辑错误 ✅ 已修复
-
-**问题**：返回的是Map.put()的返回值（被替换的旧值）而非新值
-
-**修复**：
-```java
-// 修复前（版本1.0）
-if (Objects.nonNull(result)) {
-    return idMap.put(id, result);  // ❌ 返回旧值
-}
-
-// 修复后（版本2.0）
-if (Objects.nonNull(result)) {
-    idMap.put(id, result);
-    return result;  // ✅ 返回新值
-}
-```
-
-**影响**：此bug导致doAdd()的级联bug，新节点可能被过滤掉
-
-**状态**：✅ **已在版本2.0修复**
-
-#### Bug #2：Tree.doAdd() 级联bug ✅ 自动解决
-
-**问题**：依赖Bug#1，当mergeNode()返回null时，节点被过滤掉
-
-**修复**：修复Bug#1后自动解决
-
-**状态**：✅ **已在版本2.0修复**
-
-#### 缺陷 #2：EnhanceNode 初始化策略 ✅ 已改进
-
-**问题**：parents和children延迟初始化，每次都需要检查isEmpty
-
-**修复**：
-```java
-// 修复前
-private LinkedHashSet<N> parents;          // 可能为null
-private TreeSet<N> children;               // 可能为null
-
-// 修复后
-private final LinkedHashSet<N> parents = new LinkedHashSet<>();
-private final TreeSet<N> children = new TreeSet<>(this.comparator);
-```
-
-**状态**：✅ **已在版本2.0改进**
-
-### ⚠️ 需要修复的Bug
-
-#### Bug #3：EnhanceNode.appendToParent() 缺少null检查 ⚠️ 待修复
-
-**位置**：EnhanceNode.java 第99行
-
-**问题**：参数parent没有@Nullable标记但可能接收null值
-
-**当前代码**：
-```java
-@Override
-public void appendToParent(N parent) {
-    this.parents.add(parent);  // ❌ 可能添加null
-}
-```
-
-**建议修复**：
-```java
-@Override
-public void appendToParent(N parent) {
-    if (Objects.isNull(parent)) {
-        return;  // ✅ 忽略null parent
-    }
-    this.parents.add(parent);
-}
-```
-
-**优先级**：🟠 **中等**（现有代码可能不会传入null，但从防守角度应该修复）
-
-### 📊 质量指标
-
-| 指标 | 值 | 说明 |
-|------|-----|------|
-| 关键bug | 0 | 所有关键bug已修复 |
-| 中等bug | 1 | EnhanceNode null检查 |
-| 低等bug | 0 | - |
-| 代码覆盖率 | ~95% | 主要逻辑路径覆盖 |
-| 线程安全 | ✅ | ReentrantReadWriteLock保护 |
-| 循环检测 | ✅ | Union-Find算法 |
-
-### 版本历史
-
-| 版本 | 发布时间 | 主要改进 |
-|------|---------|---------|
-| v1.0 | 2026-02 | 初始版本，发现关键bug |
-| v2.0 | 2026-02 | 修复Bug#1/2，改进EnhanceNode初始化，完整文档 |
-
----
-
 ## 常见问题FAQ
 
 ### Q1: 应该选择哪种节点类型？
@@ -1315,6 +1136,6 @@ tree.remove(n -> n.getId().equals(targetId));
 
 ---
 
-**文档更新时间**: 2026-02-26
-**版本**: 2.0
-**状态**: 生产就绪 ✅
+**文档更新时间**: 2026-03-04
+**版本**: 2.1
+**状态**: ✅ 生产就绪

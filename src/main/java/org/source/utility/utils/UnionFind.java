@@ -7,33 +7,33 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
-* 并查集（Union-Find/Disjoint Set Union）数据结构
-* <p>
-* 用于高效地解决动态连通性问题，特别适用于：
-* <ul>
-*   <li>检测图中的循环</li>
-*   <li>判断两个节点是否连通</li>
-*   <li>动态连通性管理</li>
-* </ul>
-* </p>
-* <p>
-* 算法特性：
-* <ul>
-*   <li><strong>路径压缩（Path Compression）</strong>：find 操作时优化树结构</li>
-*   <li><strong>按秩合并（Union by Rank）</strong>：总是把较小的树挂在较大的树下</li>
-*   <li><strong>时间复杂度</strong>：接近 O(1)，更精确地是 O(α(n))，其中 α 是 Ackermann 函数的反函数</li>
-*   <li><strong>空间复杂度</strong>：O(n)</li>
-* </ul>
-* </p>
-* <p>
-* 在树组件中的应用：
-* 用于在 add() 操作时检测是否会形成循环引用，确保树的结构有效性。
-* </p>
-*
-* @param <I> 元素类型，必须实现 equals 和 hashCode 方法
-* @author utility
-* @since 1.0
-*/
+ * 并查集（Union-Find/Disjoint Set Union）数据结构
+ * <p>
+ * 用于高效地解决动态连通性问题，特别适用于：
+ * <ul>
+ *   <li>检测图中的循环</li>
+ *   <li>判断两个节点是否连通</li>
+ *   <li>动态连通性管理</li>
+ * </ul>
+ * </p>
+ * <p>
+ * 算法特性：
+ * <ul>
+ *   <li><strong>路径压缩（Path Compression）</strong>：find 操作时优化树结构</li>
+ *   <li><strong>按秩合并（Union by Rank）</strong>：总是把较小的树挂在较大的树下</li>
+ *   <li><strong>时间复杂度</strong>：接近 O(1)，更精确地是 O(α(n))，其中 α 是 Ackermann 函数的反函数</li>
+ *   <li><strong>空间复杂度</strong>：O(n)</li>
+ * </ul>
+ * </p>
+ * <p>
+ * 在树组件中的应用：
+ * 用于在 add() 操作时检测是否会形成循环引用，确保树的结构有效性。
+ * </p>
+ *
+ * @param <I> 元素类型，必须实现 equals 和 hashCode 方法
+ * @author utility
+ * @since 1.0
+ */
 public class UnionFind<I> {
     /**
      * 父节点映射表
@@ -83,7 +83,7 @@ public class UnionFind<I> {
             makeSet(x);
         }
         I p = parent.get(x);
-        if (!x.equals(p)) {
+        if (!Objects.equals(x, p)) {
             // 路径压缩：将 x 的父节点直接指向根节点
             parent.put(x, find(p));
         }
@@ -102,7 +102,7 @@ public class UnionFind<I> {
      * </p>
      *
      * @param x 第一个集合中的元素
-     * @param y 第二个集合中的元素
+     * @param y 第二个集合中的元素，秩较大的节点，即父节点
      */
     public void union(I x, I y) {
         I rootX = find(x);
@@ -113,15 +113,16 @@ public class UnionFind<I> {
         }
 
         // 按秩合并
-        int rankX = rank.get(rootX);
-        int rankY = rank.get(rootY);
+        // 未找到秩默认0
+        int rankX = rank.getOrDefault(rootX, 0);
+        int rankY = rank.getOrDefault(rootY, 0);
 
         if (rankX < rankY) {
             parent.put(rootX, rootY);
         } else if (rankX > rankY) {
             parent.put(rootY, rootX);
         } else {
-            parent.put(rootY, rootX);
+            parent.put(rootX, rootY);
             rank.put(rootX, rankX + 1);
         }
     }

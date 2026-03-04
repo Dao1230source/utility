@@ -402,7 +402,7 @@ public class Assign<E> {
                 if (StringUtils.hasText(errorMsg)) {
                     log.error(errorMsg, e);
                 }
-                throw BaseExceptionEnum.ASSIGN_PARALLEL_EXECUTE_EXCEPTION.except(e, errorMsg);
+                BaseExceptionEnum.ASSIGN_PARALLEL_EXECUTE_EXCEPTION.throwException(e, errorMsg);
             }
         } else {
             tStream.forEach(function::apply);
@@ -418,7 +418,7 @@ public class Assign<E> {
                     return function.apply(t);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    throw BaseExceptionEnum.THREAD_INTERRUPTED.except(e);
+                    throw BaseExceptionEnum.THREAD_INTERRUPTED.newException(e);
                 } finally {
                     this.semaphore.release();
                 }

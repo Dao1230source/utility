@@ -1,19 +1,9 @@
 package org.source.utility.exceptions;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.utils.Asserts;
-import org.source.utility.utils.Reflects;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.ParameterizedType;
 import java.util.Collection;
 
-@SuppressWarnings("unchecked")
 public interface EnumProcessor<E extends BaseException> {
     /**
      * 枚举的 name() 方法
@@ -38,96 +28,36 @@ public interface EnumProcessor<E extends BaseException> {
      */
     String getMessage();
 
-    @Builder
-    @AllArgsConstructor
-    @NoArgsConstructor
-    @Data
-    class ExceptionConstructor<E extends BaseException> {
-        private Constructor<E> base;
-        private Constructor<E> baseAndExtra;
-        private Constructor<E> baseAndEx;
-        private Constructor<E> baseAndExAndExtra;
+    default E newException() {
+        return BaseException.newException(this);
     }
 
-    /**
-     * 获取异常的构造器
-     *
-     * @return 构造器
-     */
-    default ExceptionConstructor<E> exceptionConstructor() {
-        return (ExceptionConstructor<E>) ExceptionConstructorCache.CONSTRUCTOR_MAP.computeIfAbsent(this.getClass(), k -> {
-            ParameterizedType parameterizedType = Reflects.getParameterizedType(this.getClass(), EnumProcessor.class.getName());
-            assert parameterizedType != null;
-            Class<? extends BaseException> cls = (Class<? extends BaseException>) parameterizedType.getActualTypeArguments()[0];
-            try {
-                return ExceptionConstructor.<E>builder()
-                        .base((Constructor<E>) cls.getConstructor(EnumProcessor.class))
-                        .baseAndExtra((Constructor<E>) cls.getConstructor(EnumProcessor.class, String.class, Object[].class))
-                        .baseAndEx((Constructor<E>) cls.getConstructor(EnumProcessor.class, Throwable.class))
-                        .baseAndExAndExtra((Constructor<E>) cls.getConstructor(EnumProcessor.class, Throwable.class, String.class, Object[].class))
-                        .build();
-            } catch (NoSuchMethodException e) {
-                throw new BaseException(BaseExceptionEnum.REFLECT_EXCEPTION, e);
-            }
-        });
+    default E newException(String extraMessage, Object... objects) {
+        return BaseException.newException(this, extraMessage, objects);
     }
 
-    /**
-     * except
-     *
-     * @return BaseException
-     */
-    default E except() {
-        try {
-            return this.exceptionConstructor().getBase().newInstance(this);
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException ex) {
-            throw new BaseException(BaseExceptionEnum.REFLECT_EXCEPTION, ex);
-        }
+    default E newException(Throwable e) {
+        return BaseException.newException(this, e);
     }
 
-    /**
-     * new BaseException
-     *
-     * @param extraMessage 额外消息
-     * @param objects      消息中占位符的具体值
-     * @return BaseException
-     */
-    default E except(String extraMessage, Object... objects) {
-        try {
-            return this.exceptionConstructor().getBaseAndExtra().newInstance(this, extraMessage, objects);
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-            throw new BaseException(BaseExceptionEnum.REFLECT_EXCEPTION, e);
-        }
+    default E newException(Throwable e, String extraMessage, Object... objects) {
+        return BaseException.newException(this, e, extraMessage, objects);
     }
 
-    /**
-     * new BaseException
-     *
-     * @param e e
-     * @return BaseException
-     */
-    default E except(Throwable e) {
-        try {
-            return this.exceptionConstructor().getBaseAndEx().newInstance(this, e);
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException ex) {
-            throw new BaseException(BaseExceptionEnum.REFLECT_EXCEPTION, ex);
-        }
+    default void throwException() {
+        throw newException();
     }
 
-    /**
-     * new BaseException
-     *
-     * @param e            e
-     * @param extraMessage 额外消息
-     * @param objects      消息中占位符的具体值
-     * @return BaseException
-     */
-    default E except(Throwable e, String extraMessage, Object... objects) {
-        try {
-            return this.exceptionConstructor().getBaseAndExAndExtra().newInstance(this, e, extraMessage, objects);
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException ex) {
-            throw new BaseException(BaseExceptionEnum.REFLECT_EXCEPTION, ex);
-        }
+    default void throwException(String extraMessage, Object... objects) {
+        throw newException(extraMessage, objects);
+    }
+
+    default void throwException(Throwable e) {
+        throw newException(e);
+    }
+
+    default void throwException(Throwable e, String extraMessage, Object... objects) {
+        throw newException(e, extraMessage, objects);
     }
 
     /**
@@ -136,11 +66,11 @@ public interface EnumProcessor<E extends BaseException> {
      * @param expression expression
      */
     default void isTrue(boolean expression) {
-        Asserts.isTrue(expression, this::except);
+        Asserts.isTrue(expression, this::newException);
     }
 
     default void isFalse(boolean expression) {
-        Asserts.isFalse(expression, this::except);
+        Asserts.isFalse(expression, this::newException);
     }
 
     /**
@@ -151,11 +81,11 @@ public interface EnumProcessor<E extends BaseException> {
      * @param objects      objects
      */
     default void isTrue(boolean expression, String extraMessage, Object... objects) {
-        Asserts.isTrue(expression, () -> this.except(extraMessage, objects));
+        Asserts.isTrue(expression, () -> this.newException(extraMessage, objects));
     }
 
     default void isFalse(boolean expression, String extraMessage, Object... objects) {
-        Asserts.isFalse(expression, () -> this.except(extraMessage, objects));
+        Asserts.isFalse(expression, () -> this.newException(extraMessage, objects));
     }
 
     /**
@@ -164,7 +94,7 @@ public interface EnumProcessor<E extends BaseException> {
      * @param obj obj
      */
     default void isNull(Object obj) {
-        Asserts.isNull(obj, this::except);
+        Asserts.isNull(obj, this::newException);
     }
 
     /**
@@ -175,7 +105,7 @@ public interface EnumProcessor<E extends BaseException> {
      * @param objects      objects
      */
     default void isNull(Object obj, String extraMessage, Object... objects) {
-        Asserts.isNull(obj, () -> this.except(extraMessage, objects));
+        Asserts.isNull(obj, () -> this.newException(extraMessage, objects));
     }
 
     /**
@@ -184,7 +114,7 @@ public interface EnumProcessor<E extends BaseException> {
      * @param obj obj
      */
     default void nonNull(Object obj) {
-        Asserts.nonNull(obj, this::except);
+        Asserts.nonNull(obj, this::newException);
     }
 
     /**
@@ -195,7 +125,7 @@ public interface EnumProcessor<E extends BaseException> {
      * @param objects      objects
      */
     default void nonNull(Object obj, String extraMessage, Object... objects) {
-        Asserts.nonNull(obj, () -> this.except(extraMessage, objects));
+        Asserts.nonNull(obj, () -> this.newException(extraMessage, objects));
     }
 
     /**
@@ -204,11 +134,11 @@ public interface EnumProcessor<E extends BaseException> {
      * @param collection collection
      */
     default void notEmpty(Collection<?> collection) {
-        Asserts.notEmpty(collection, this::except);
+        Asserts.notEmpty(collection, this::newException);
     }
 
     default void isEmpty(Collection<?> collection) {
-        Asserts.isEmpty(collection, this::except);
+        Asserts.isEmpty(collection, this::newException);
     }
 
     /**
@@ -219,19 +149,19 @@ public interface EnumProcessor<E extends BaseException> {
      * @param objects      objects
      */
     default void notEmpty(Collection<?> collection, String extraMessage, Object... objects) {
-        Asserts.notEmpty(collection, () -> this.except(extraMessage, objects));
+        Asserts.notEmpty(collection, () -> this.newException(extraMessage, objects));
     }
 
     default void isEmpty(Collection<?> collection, String extraMessage, Object... objects) {
-        Asserts.isEmpty(collection, () -> this.except(extraMessage, objects));
+        Asserts.isEmpty(collection, () -> this.newException(extraMessage, objects));
     }
 
     default void notEmpty(String str) {
-        Asserts.notEmpty(str, this::except);
+        Asserts.notEmpty(str, this::newException);
     }
 
     default void isEmpty(String str) {
-        Asserts.isEmpty(str, this::except);
+        Asserts.isEmpty(str, this::newException);
     }
 
     /**
@@ -242,11 +172,11 @@ public interface EnumProcessor<E extends BaseException> {
      * @param objects      objects
      */
     default void notEmpty(String str, String extraMessage, Object... objects) {
-        Asserts.notEmpty(str, () -> this.except(extraMessage, objects));
+        Asserts.notEmpty(str, () -> this.newException(extraMessage, objects));
     }
 
     default void isEmpty(String str, String extraMessage, Object... objects) {
-        Asserts.isEmpty(str, () -> this.except(extraMessage, objects));
+        Asserts.isEmpty(str, () -> this.newException(extraMessage, objects));
     }
 
 
@@ -256,19 +186,19 @@ public interface EnumProcessor<E extends BaseException> {
      * @param objects objects
      */
     default void notEmpty(Object[] objects) {
-        Asserts.notEmpty(objects, this::except);
+        Asserts.notEmpty(objects, this::newException);
     }
 
     default void isEmpty(Object[] objects) {
-        Asserts.isEmpty(objects, this::except);
+        Asserts.isEmpty(objects, this::newException);
     }
 
     default void notEmpty(Object[] object, String extraMessage, Object... objects) {
-        Asserts.notEmpty(object, () -> this.except(extraMessage, objects));
+        Asserts.notEmpty(object, () -> this.newException(extraMessage, objects));
     }
 
     default void isEmpty(Object[] object, String extraMessage, Object... objects) {
-        Asserts.isEmpty(object, () -> this.except(extraMessage, objects));
+        Asserts.isEmpty(object, () -> this.newException(extraMessage, objects));
     }
 
 }

@@ -69,17 +69,6 @@ public abstract class AbstractNode<I extends Comparable<I>, E extends Element<I>
     private Map<I, N> childrenMap = new ConcurrentHashMap<>();
 
     /**
-     * 新旧数据合并处理器
-     * 当添加的节点 ID 已存在时，用此处理器合并新旧节点
-     * 默认：保留新节点
-     */
-    private BinaryOperator<N> mergeHandler = (n, old) -> n;
-    /**
-     * 当 mergeHandler 返回null时如何处理
-     */
-    private MergeReturnNullStrategyEnum mergeReturnNullStrategy;
-
-    /**
      * 创建一个空的同类型节点
      * <p>
      * 用于在树中创建新的节点实例。
@@ -125,48 +114,47 @@ public abstract class AbstractNode<I extends Comparable<I>, E extends Element<I>
      * </p>
      *
      * @param child 要添加的子节点，不能为 null
-     * @return 添加成功的子节点，返回的节点不一定是要添加的child，受 mergeHandler 和 mergeReturnNullStrategy 的影响。可能返回 null
+     * @return 添加成功的子节点，非null
      */
-    public @Nullable N addChild(N child) {
-        return mergeNode(child, Node::getId, this.getChildrenMap(), this.getMergeHandler(), this.getMergeReturnNullStrategy());
+    public N addChild(N child, @Nullable BinaryOperator<N> mergeHandler) {
+        MergeNodeResult<I, E, N> result = mergeNode(child, Node::getId, this.childrenMap, mergeHandler);
+        N resultNode = result.getResultNode();
+        BaseExceptionEnum.NOT_NULL.nonNull(resultNode, "merged result node must not null");
+        BaseExceptionEnum.NOT_NULL.nonNull(resultNode.getId(), "merged result node id must not null");
+        this.childrenMap.put(resultNode.getId(), resultNode);
+        return resultNode;
     }
 
-    public static <I extends Comparable<I>, E extends Element<I>, N extends AbstractNode<I, E, N>> @Nullable N mergeNode(
+    /**
+     * 合并节点
+     *
+     * @param n            新节点
+     * @param idGetter     节点 ID 获取器
+     * @param idMap        节点 ID 映射表
+     * @param mergeHandler 合并处理器
+     * @param <I>          ID 类型
+     * @param <E>          元素类型
+     * @param <N>          节点类型
+     * @return 合并结果 非null
+     */
+    public static <I extends Comparable<I>, E extends Element<I>, N extends AbstractNode<I, E, N>>
+    MergeNodeResult<I, E, N> mergeNode(
             N n,
             Function<N, I> idGetter,
             Map<I, N> idMap,
-            @Nullable BinaryOperator<N> mergeHandler,
-            @Nullable MergeReturnNullStrategyEnum mergeReturnNullStrategy) {
+            @Nullable BinaryOperator<N> mergeHandler) {
         I id = idGetter.apply(n);
-        if (Objects.isNull(id)) {
-            return null;
-        }
+        BaseExceptionEnum.NOT_NULL.nonNull(id, "new node id must not null");
         N result = n;
         N old = idMap.get(id);
-        if (Objects.nonNull(old) && Objects.nonNull(mergeHandler)) {
+        if (Objects.isNull(old)) {
+            return new MergeNodeResult<>(n, null, result, MergeResultTypeEnum.ADD_NEW);
+        }
+        if (Objects.nonNull(mergeHandler)) {
             result = mergeHandler.apply(n, old);
         }
-        if (Objects.nonNull(result)) {
-            idMap.put(id, result);
-            return result;
-        }
-        if (MergeReturnNullStrategyEnum.RETAIN_NEW.equals(mergeReturnNullStrategy)) {
-            idMap.put(id, n);
-            return n;
-        } else if (MergeReturnNullStrategyEnum.RETAIN_OLD.equals(mergeReturnNullStrategy)) {
-            idMap.put(id, old);
-            return old;
-        } else if (MergeReturnNullStrategyEnum.REMOVE_OLD.equals(mergeReturnNullStrategy)) {
-            // old是已存在的节点数据，getId 一定有值
-            idMap.remove(old.getId());
-            return null;
-        } else if (MergeReturnNullStrategyEnum.THROW_EXCEPTION.equals(mergeReturnNullStrategy)) {
-            throw BaseExceptionEnum.TREE_MERGE_EXCEPTION.except("Merge result is null");
-        } else {
-            // mergeReturnNullStrategy = null 时默认保留新数据
-            idMap.put(id, n);
-            return n;
-        }
+        BaseExceptionEnum.NOT_NULL.nonNull(result, "mergeHandler result must not null, new node id:{}", id);
+        return new MergeNodeResult<>(n, old, result, MergeResultTypeEnum.ADD_MERGED);
     }
 
     /**

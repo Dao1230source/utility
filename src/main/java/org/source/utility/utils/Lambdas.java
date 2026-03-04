@@ -39,7 +39,7 @@ public class Lambdas {
                 ReflectionUtils.makeAccessible(writeReplace);
                 return (SerializedLambda) writeReplace.invoke(serializable);
             } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-                throw BaseExceptionEnum.RESOLVE_S_FUNCTION_EXCEPTION.except();
+                throw BaseExceptionEnum.RESOLVE_S_FUNCTION_EXCEPTION.newException(e);
             }
         });
     }
