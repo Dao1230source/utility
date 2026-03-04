@@ -428,9 +428,11 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
             N parent = node.getParent();
             if (Objects.nonNull(parent)) {
                 I parentId = parent.getId();
-                // 确保父节点也在并查集中
-                newUnionFind.makeSet(parentId);
-                newUnionFind.union(id, parentId);
+                if (Objects.nonNull(parentId)) {
+                    // 确保父节点也在并查集中
+                    newUnionFind.makeSet(parentId);
+                    newUnionFind.union(id, parentId);
+                }
             }
         });
         this.unionFind.rebuild(newUnionFind);
