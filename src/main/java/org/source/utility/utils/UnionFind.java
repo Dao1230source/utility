@@ -102,7 +102,7 @@ public class UnionFind<I> {
      * </p>
      *
      * @param x 第一个集合中的元素
-     * @param y 第二个集合中的元素，秩较大的节点，即父节点
+     * @param y 第二个集合中的元素，秩较大节点，即父节点
      */
     public void union(I x, I y) {
         I rootX = find(x);
@@ -112,10 +112,10 @@ public class UnionFind<I> {
             return;
         }
 
-        // 按秩合并
-        // 未找到秩默认0
-        int rankX = rank.getOrDefault(rootX, 0);
-        int rankY = rank.getOrDefault(rootY, 0);
+        // 按秩合并，需要确保 rank 中存在对应的键
+        // 如果键不存在，说明该元素是新加入的，秩为 0
+        Integer rankX = rank.getOrDefault(rootX, 0);
+        Integer rankY = rank.getOrDefault(rootY, 0);
 
         if (rankX < rankY) {
             parent.put(rootX, rootY);
@@ -123,7 +123,7 @@ public class UnionFind<I> {
             parent.put(rootY, rootX);
         } else {
             parent.put(rootX, rootY);
-            rank.put(rootX, rankX + 1);
+            rank.put(rootY, rankY + 1);
         }
     }
 
