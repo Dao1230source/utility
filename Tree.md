@@ -44,7 +44,8 @@
 - **N extends AbstractNode<I, E, N>** - 节点，树中的节点对象，包含元素和关系信息
 
 ### demo
-更多使用案例详见 https://github.com/Dao1230source/demo/tree/main/utility/tree
+[更多使用案例](https://github.com/Dao1230source/demo/tree/main/utility/tree)   
+[性能测试报告](https://github.com/Dao1230source/demo/blob/main/utility/tree/JMH-REPORT.md)
 
 ---
 
