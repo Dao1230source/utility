@@ -26,10 +26,10 @@ public class Lambdas {
     }
 
     @SuppressWarnings("unchecked")
-    public static <T> Class<T> getClass(Serializable serializable) {
+    public static <T> Class<T> getClass(Serializable serializable) throws ClassNotFoundException {
         String className = resolve(serializable).getImplClass();
         className = className.replace(Constants.DIAGONAL, Constants.DOT);
-        return (Class<T>) Reflects.classForName(className);
+        return (Class<T>) Class.forName(className);
     }
 
     public static SerializedLambda resolve(Serializable serializable) {

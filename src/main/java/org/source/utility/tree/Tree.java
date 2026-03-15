@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.source.utility.enums.BaseExceptionEnum;
-import org.source.utility.exceptions.BaseException;
+import org.source.utility.exception.BaseException;
 import org.source.utility.tree.define.*;
 import org.source.utility.utils.Jsons;
 import org.source.utility.utils.Streams;
@@ -83,24 +83,23 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      * 采用延迟初始化：root 节点在第一次 add() 时才添加到并查集中
      */
     private final UnionFind<I> unionFind = new UnionFind<>();
-
     /**
      * 树的根节点
      * 所有父节点为空的节点都会以此作为父节点
      */
     private final N root;
     /**
+     * 节点合并处理器，和{@see org.source.utility.tree.define.AbstractNode#mergeHandler}是分别控制的
+     * <br/>
+     * 默认：保留新节点
+     */
+    private BinaryOperator<N> mergeHandler = (n, old) -> n;
+    /**
      * 节点创建后的处理器
      * 在节点创建完成后、添加到树之前调用
      */
     private @Nullable Consumer<N> afterCreateHandler;
 
-    /**
-     * 节点合并处理器
-     * 当添加的节点 ID 已存在时，用此处理器合并新旧节点
-     * 默认：保留新节点
-     */
-    private @Nullable BinaryOperator<N> mergeHandler = (n, old) -> n;
     /**
      * 节点添加后的处理器
      * 在节点添加到树之后调用
@@ -201,16 +200,17 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
                 AbstractNode.mergeNode(n, this.getIdGetter(), this.getIdMap(), this.getMergeHandler())
         ).filter(Objects::nonNull).toList();
         // 添加节点
-        List<N> mergedNodes = Streams.of(mergedResult).map(MergeNodeResult::getResultNode).filter(obj -> true).toList();
+        List<N> mergedNodes = Streams.of(mergedResult).map(MergeNodeResult::getResultNode).toList();
         mergedNodes.forEach(node -> {
             I parentId = this.getParentIdGetter().apply(node);
             N parent = this.getParent(parentId);
-            N addedChild = parent.addChild(node, this.mergeHandler);
+            N addedChild = parent.addChild(node);
             addedChild.appendToParent(parent);
             this.idMap.put(addedChild.getId(), addedChild);
         });
         // 使用并查集检测循环引用
-        List<N> addedNodes = Streams.of(mergedResult).filter(k -> MergeResultTypeEnum.ADD_NEW.equals(k.getResultType()))
+        List<N> addedNodes = Streams.of(mergedResult)
+                .filter(k -> MergeResultTypeEnum.ADD_NEW.equals(k.getResultType()))
                 .map(MergeNodeResult::getResultNode).toList();
         try {
             this.detectCircularReferences(addedNodes);
@@ -221,7 +221,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
             throw e;
         }
         // 此时节点已加载完毕
-        mergedNodes.forEach(this::doAfter);
+        this.doAfter(addedNodes);
         this.getSourceElements().addAll(es);
         return root;
     }
@@ -258,6 +258,20 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         this.unionFind.union(id, parentNodeId);
     }
 
+    /**
+     * 批量处理后置事件
+     *
+     * @param mergedNodes 合并后的节点
+     */
+    protected void doAfter(List<N> mergedNodes) {
+        mergedNodes.forEach(this::doAfter);
+    }
+
+    /**
+     * 处理后置事件
+     *
+     * @param node 合并后的节点
+     */
     protected void doAfter(N node) {
         node.nodeHandler();
         if (Objects.nonNull(node.getParent()) && Objects.nonNull(this.getAfterAddHandler())) {

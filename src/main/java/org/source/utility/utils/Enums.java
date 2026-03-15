@@ -4,6 +4,7 @@ import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import org.source.utility.constant.Constants;
 import org.source.utility.function.SFunction;
+import org.springframework.lang.Nullable;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -21,9 +22,6 @@ public class Enums {
     private static final Map<String, Map<Object, Enum<?>>> ENUM_MAP = new ConcurrentHashMap<>(32);
 
     public static <E extends Enum<E>, K> Map<Object, Enum<?>> enumToMap(Class<E> enumClass, SFunction<E, K> keyGetter) {
-        if (Objects.isNull(enumClass) || Objects.isNull(keyGetter)) {
-            return Map.of();
-        }
         if (!enumClass.isEnum()) {
             log.warn("class不是一个枚举类: {}", enumClass.getName());
             return Map.of();
@@ -53,9 +51,6 @@ public class Enums {
     @SuppressWarnings("unchecked")
     public static <E extends Enum<E>, K, V> Map<K, V> toMap(Class<E> enumClass, SFunction<E, K> keyGetter,
                                                             SFunction<E, V> valueGetter) {
-        if (Objects.isNull(valueGetter)) {
-            return Map.of();
-        }
         Map<Object, Enum<?>> map = enumToMap(enumClass, keyGetter);
         Map<K, V> genericMap = new ConcurrentHashMap<>(map.size());
         map.forEach((k, v) -> genericMap.put((K) k, valueGetter.apply((E) v)));
@@ -63,22 +58,19 @@ public class Enums {
     }
 
     @SuppressWarnings("unchecked")
-    public static <E extends Enum<E>, K> E getEnum(Class<E> enumClass,
-                                                   SFunction<E, K> keyGetter,
-                                                   K k) {
+    public static <E extends Enum<E>, K> @Nullable E getEnum(Class<E> enumClass,
+                                                             SFunction<E, K> keyGetter,
+                                                             @Nullable K k) {
         if (Objects.isNull(k)) {
             return null;
         }
         return (E) enumToMap(enumClass, keyGetter).get(k);
     }
 
-    public static <E extends Enum<E>, K, V> V getValue(Class<E> enumClass,
-                                                       SFunction<E, K> keyGetter,
-                                                       K k,
-                                                       SFunction<E, V> valueGetter) {
-        if (Objects.isNull(valueGetter)) {
-            return null;
-        }
+    public static <E extends Enum<E>, K, V> @Nullable V getValue(Class<E> enumClass,
+                                                                 SFunction<E, K> keyGetter,
+                                                                 K k,
+                                                                 SFunction<E, V> valueGetter) {
         E e = getEnum(enumClass, keyGetter, k);
         if (Objects.nonNull(e)) {
             return valueGetter.apply(e);

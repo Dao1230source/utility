@@ -1,19 +1,18 @@
-package org.source.utility.exceptions;
+package org.source.utility.exception;
 
 import com.fasterxml.jackson.annotation.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import org.jetbrains.annotations.NotNull;
 import org.source.utility.enums.BaseExceptionEnum;
-import org.source.utility.utils.Reflects;
+import org.source.utility.utils.Streams;
 import org.source.utility.utils.Strings;
+import org.springframework.core.ResolvableType;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.ParameterizedType;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -39,8 +38,8 @@ public class BaseException extends RuntimeException {
     private final String extraMessage;
 
     @JsonCreator
-    public BaseException(@JsonProperty(value = "code") @NotNull String code,
-                         @JsonProperty(value = "message") @NotNull String message,
+    public BaseException(@JsonProperty(value = "code") @NonNull String code,
+                         @JsonProperty(value = "message") @NonNull String message,
                          @JsonProperty(value = "cause") @Nullable Throwable cause,
                          @JsonProperty(value = "extraMessage") @Nullable String extraMessage) {
         this.code = code;
@@ -103,9 +102,12 @@ public class BaseException extends RuntimeException {
     private static <E1 extends BaseException, E2 extends EnumProcessor<E1>> ExceptionConstructor<E1>
     exceptionConstructor(Class<E2> exceptionClass) {
         return (ExceptionConstructor<E1>) CONSTRUCTOR_MAP.computeIfAbsent(exceptionClass, k -> {
-            ParameterizedType parameterizedType = Reflects.getParameterizedType(exceptionClass, EnumProcessor.class.getName());
-            assert parameterizedType != null;
-            Class<? extends BaseException> cls = (Class<? extends BaseException>) parameterizedType.getActualTypeArguments()[0];
+            ResolvableType resolvableType = ResolvableType.forClass(exceptionClass);
+            ResolvableType[] interfaces = resolvableType.getInterfaces();
+            ResolvableType enumProcessorType = Streams.of(interfaces).filter(i -> EnumProcessor.class.equals(i.getRawClass())).findFirst()
+                    .orElseThrow(BaseExceptionEnum.EXCEPTION_CLASS_MUST_IMPLEMENT_ENUM_PROCESSOR::newException);
+            Class<? extends BaseException> cls = (Class<? extends BaseException>) enumProcessorType.getGeneric(0).getRawClass();
+            BaseExceptionEnum.ENUM_PROCESSOR_GENERIC_MUST_INSTANCEOF_BASE_EXCEPTION.nonNull(cls);
             try {
                 return ExceptionConstructor.<E1>builder()
                         .base((Constructor<E1>) cls.getConstructor(EnumProcessor.class))

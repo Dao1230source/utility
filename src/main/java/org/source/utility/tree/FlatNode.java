@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
 import org.source.utility.enums.BaseExceptionEnum;
-import org.source.utility.exceptions.BaseException;
+import org.source.utility.exception.BaseException;
 import org.source.utility.function.SFunction;
 import org.source.utility.tree.define.AbstractNode;
 import org.source.utility.tree.define.Element;

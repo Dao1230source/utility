@@ -8,14 +8,12 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.source.utility.constant.Constants;
 import org.source.utility.enums.BaseExceptionEnum;
+import org.source.utility.tree.Tree;
 import org.source.utility.utils.Jsons;
 import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.*;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
 
@@ -64,9 +62,16 @@ public abstract class AbstractNode<I extends Comparable<I>, E extends Element<I>
      * 子节点映射表
      * key：子节点的 ID
      * value：子节点对象
-     * 使用 ConcurrentHashMap 保证并发安全性
+     * 使用 LinkedHashMap 保证保存顺序，由Tree保证线程安全
      */
-    private Map<I, N> childrenMap = new ConcurrentHashMap<>();
+    private Map<I, N> childrenMap = new LinkedHashMap<>();
+
+    /**
+     * 节点合并处理器
+     * 当添加的节点 ID 已存在时，用此处理器合并新旧节点
+     * 默认：保留新节点
+     */
+    private BinaryOperator<N> mergeHandler = (n, old) -> n;
 
     /**
      * 创建一个空的同类型节点
@@ -115,13 +120,19 @@ public abstract class AbstractNode<I extends Comparable<I>, E extends Element<I>
      *
      * @param child 要添加的子节点，不能为 null
      * @return 添加成功的子节点，非null
+     * @apiNote 如果需要添加子节点，务必使用{@link Tree#add(Collection)}来添加，以保证线程安全、循环引用检测等
      */
-    public N addChild(N child, @Nullable BinaryOperator<N> mergeHandler) {
-        MergeNodeResult<I, E, N> result = mergeNode(child, Node::getId, this.childrenMap, mergeHandler);
+    public N addChild(N child) {
+        N resultNode = this.mergeNode(child, this.getChildrenMap());
+        this.getChildrenMap().put(resultNode.getId(), resultNode);
+        return resultNode;
+    }
+
+    protected N mergeNode(N child, Map<I, N> childrenMap) {
+        MergeNodeResult<I, E, N> result = mergeNode(child, Node::getId, childrenMap, this.getMergeHandler());
         N resultNode = result.getResultNode();
         BaseExceptionEnum.NOT_NULL.nonNull(resultNode, "merged result node must not null");
         BaseExceptionEnum.NOT_NULL.nonNull(resultNode.getId(), "merged result node id must not null");
-        this.childrenMap.put(resultNode.getId(), resultNode);
         return resultNode;
     }
 

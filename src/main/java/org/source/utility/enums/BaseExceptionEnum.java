@@ -2,8 +2,8 @@ package org.source.utility.enums;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import org.source.utility.exceptions.BaseException;
-import org.source.utility.exceptions.EnumProcessor;
+import org.source.utility.exception.BaseException;
+import org.source.utility.exception.EnumProcessor;
 
 /**
  *
@@ -74,6 +74,12 @@ public enum BaseExceptionEnum implements EnumProcessor<BaseException> {
      */
     TREE_MERGE_EXCEPTION("merge_exception"),
     TREE_CAN_NOT_UPDATE_ID("can not update id"),
+
+    /**
+     * exception
+     */
+    EXCEPTION_CLASS_MUST_IMPLEMENT_ENUM_PROCESSOR("异常类必须实现EnumProcessor接口"),
+    ENUM_PROCESSOR_GENERIC_MUST_INSTANCEOF_BASE_EXCEPTION("EnumProcessor的泛型类型必须是BaseException极其子类"),
     ;
 
     private final String message;

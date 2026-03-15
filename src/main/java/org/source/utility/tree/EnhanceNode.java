@@ -2,14 +2,14 @@ package org.source.utility.tree;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.source.utility.enums.BaseExceptionEnum;
-import org.source.utility.tree.define.*;
+import org.source.utility.tree.define.AbstractNode;
+import org.source.utility.tree.define.Element;
+import org.source.utility.tree.define.EnhanceElement;
 import org.source.utility.utils.Streams;
 import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
 import java.util.*;
-import java.util.function.BinaryOperator;
 
 
 /**
@@ -82,15 +82,11 @@ public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N
      * @param child 要添加的子节点
      */
     @Override
-    public N addChild(N child, @Nullable BinaryOperator<N> mergeHandler) {
-        // 先通过父类逻辑处理合并
+    public N addChild(N child) {
         Map<I, N> childrenMap = Streams.toMap(this.children, N::getId);
-        MergeNodeResult<I, E, N> result = mergeNode(child, Node::getId, childrenMap, mergeHandler);
-        N resultNode = result.getResultNode();
-        BaseExceptionEnum.NOT_NULL.nonNull(resultNode, "merged result node must not null");
-        BaseExceptionEnum.NOT_NULL.nonNull(resultNode.getId(), "merged result node id must not null");
+        N resultNode = this.mergeNode(child, childrenMap);
         this.children.add(resultNode);
-        return result.getResultNode();
+        return resultNode;
     }
 
     /**

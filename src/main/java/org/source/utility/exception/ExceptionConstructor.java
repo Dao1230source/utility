@@ -1,4 +1,4 @@
-package org.source.utility.exceptions;
+package org.source.utility.exception;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
