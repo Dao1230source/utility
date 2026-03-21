@@ -35,7 +35,7 @@
 - **Assemble**：最小赋值单元，`BiConsumer<E, T>` 语义
 - **InterruptStrategyEnum**：中断策略（NO / ANY / ALL）
 - **InvokeStatusEnum**：执行状态（CREATED / ALL_SUCCESS / PARTIAL_FAIL / ALL_FAIL）
-- [架构UML图](Assign_Architecture.puml)
+- [架构UML图](Assign_Architecture.png)
 
 ## 环境要求
 

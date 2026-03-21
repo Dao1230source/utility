@@ -146,7 +146,7 @@ tree.setParentIdGetter(node ->
 
 ## 架构设计
 
-- [架构UML图](Tree_Architecture.puml)
+- [架构UML图](Tree_Architecture.png)
 
 ### 数据结构
 
