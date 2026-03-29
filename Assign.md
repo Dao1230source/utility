@@ -1,12 +1,40 @@
-# Assign 组件 - 批量赋值工具库（JDK21增强版）
+# Assign - Java Batch Assignment Tool | Java 批量赋值工具库
 
-> **IDEA 报错说明**：本文档中的示例代码引用的 `OrderDTO`、`EmployeeDTO`、`NetDTO` 等类为示例 DTO，需用户自行定义。IDEA 可能会因找不到这些类而报错，属于正常现象。示例代码仅用于展示 API 用法，不可直接运行。
+<!-- 
+Keywords: Java, Batch Assignment, 批量赋值, Data Enrichment, 数据补充, JDK 21, Virtual Thread, 虚拟线程
+GitHub: https://github.com/Dao1230source/utility
+Maven: io.github.dao1230source:utility
+-->
 
-## demo
+> **Assign** is a Java library for batch data assignment and enrichment. Perfect for scenarios where you need to fetch related data by field values and assign them in bulk. Supports parallel processing, batching, caching, and JDK 21 virtual threads.
+>
+> **Assign** 是一个 Java 批量赋值工具库，专为"根据字段值批量查询关联数据并赋值"场景设计。支持多线程并行、分批请求、本地缓存、JDK 21 虚拟线程等特性。
 
-更多使用案例详见 https://github.com/Dao1230source/demo/tree/main/utility/assign
+[![Java](https://img.shields.io/badge/Java-21+-orange)](https://openjdk.org/)
+[![Maven](https://img.shields.io/badge/Maven-io.github.dao1230source:utility-blue)](https://central.sonatype.com/artifact/io.github.dao1230source/utility)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-## 概述
+---
+
+## 📌 Quick Links | 快速链接
+
+- **GitHub Repository**: https://github.com/Dao1230source/utility
+- **Demo & Examples**: https://github.com/Dao1230source/demo/tree/main/utility/assign
+- **Maven Dependency**: `io.github.dao1230source:utility`
+
+## 📖 Table of Contents | 目录
+
+- [Overview | 概述](#概述)
+- [Core Features | 核心特性](#核心特性)
+- [Quick Start | 快速开始](#快速开始)
+- [API Reference | API 参考](#核心-api-详细说明)
+- [Examples | 使用示例](#使用示例)
+- [Best Practices | 最佳实践](#最佳实践)
+- [FAQ | 常见问题](#faq)
+
+---
+
+## Overview | 概述
 
 基于函数式 API 与流式构建，简化在日常开发中常见的"根据字段值批量查询关联数据并赋值"场景。支持多线程并行、分批请求、本地缓存、异常与中断策略、条件分支与子任务编排等特性。
 
@@ -35,7 +63,8 @@
 - **Assemble**：最小赋值单元，`BiConsumer<E, T>` 语义
 - **InterruptStrategyEnum**：中断策略（NO / ANY / ALL）
 - **InvokeStatusEnum**：执行状态（CREATED / ALL_SUCCESS / PARTIAL_FAIL / ALL_FAIL）
-- [架构UML图](Assign_Architecture.png)
+- - **InvokeStatusEnum**：执行状态（CREATED / ALL_SUCCESS / PARTIAL_FAIL / ALL_FAIL）
+- [架构UML图](https://github.com/Dao1230source/utility/blob/main/Assign_Architecture.png)
 
 ## 环境要求
 
@@ -741,6 +770,29 @@ Assign 是一个生产级别的批量数据关联框架，核心优势包括：
 
 欢迎提交 Issue 与 PR，建议附上最小复现示例与期望行为。
 
+- **GitHub Issues**: https://github.com/Dao1230source/utility/issues
+- **GitHub Repository**: https://github.com/Dao1230source/utility
+
 ## License
 
-遵循项目主仓库的开源协议。
+遵循项目主仓库的开源协议（MIT License）。
+
+---
+
+## 🏷️ Tags | 标签
+
+**Keywords**: Java, Batch Assignment, Data Enrichment, Batch Processing, Virtual Thread, JDK 21, Parallel Processing, Caffeine Cache, Functional API, Stream API, DTO Mapping
+
+**关键词**: Java批量赋值, 数据补充, 批量处理, 虚拟线程, JDK21, 并行处理, 函数式编程, 流式API, 缓存, DTO映射
+
+**Use Cases**: Order data enrichment, Employee data lookup, Multi-source data aggregation, Batch API calls, Database query optimization, Microservice data fetching
+
+**使用场景**: 订单数据补充, 员工信息查询, 多数据源聚合, 批量API调用, 数据库查询优化, 微服务数据获取
+
+---
+
+## 🔗 Related Projects | 相关项目
+
+- [Tree](Tree.md) - Java Tree Data Structure Library
+- [utility](https://github.com/Dao1230source/utility) - Full utility library
+- [demo](https://github.com/Dao1230source/demo) - Usage examples and demos

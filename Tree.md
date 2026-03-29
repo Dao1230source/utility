@@ -1,12 +1,33 @@
-# Tree 组件完整指南
+# Tree - Java Tree Data Structure Library | Java 树形数据结构组件
 
-**版本**: 2.1
-**更新时间**: 2026-03-04
-**状态**: ✅ 生产就绪
+<!-- 
+Keywords: Java, Tree Data Structure, 树形结构, Tree, DAG, Directed Acyclic Graph, 有向无环图, Organization Chart, 组织结构, Menu System, 菜单系统, Concurrent, 并发安全, Circular Reference Detection, 循环引用检测
+GitHub: https://github.com/Dao1230source/utility
+Maven: io.github.dao1230source:utility
+-->
+
+> **Tree** is a generic tree data structure container for Java, supporting flexible tree and DAG (Directed Acyclic
+> Graph) structures. Features thread-safety with read-write locks, automatic circular reference detection using
+> Union-Find
+> algorithm, and multiple node types for various use cases.
+>
+> **Tree** 是一个通用的 Java 树形数据结构容器，支持灵活的树形和 DAG 结构。提供并发安全（读写锁）、循环引用检测（Union-Find
+> 算法）、多种节点类型等特性，适用于组织结构、分类体系、菜单系统等场景。
+
+[![Java](https://img.shields.io/badge/Java-21+-orange)](https://openjdk.org/)
+[![Maven](https://img.shields.io/badge/Maven-io.github.dao1230source:utility-blue)](https://central.sonatype.com/artifact/io.github.dao1230source/utility)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 ---
 
-## 📚 目录
+## 📌 Quick Links | 快速链接
+
+- **GitHub Repository**: https://github.com/Dao1230source/utility
+- **Demo & Examples**: https://github.com/Dao1230source/demo/tree/main/utility/tree
+- **Performance Report**: https://github.com/Dao1230source/demo/blob/main/utility/tree/JMH-REPORT.md
+- **Maven Dependency**: `io.github.dao1230source:utility`
+
+## 📖 Table of Contents | 目录
 
 1. [概述](#概述)
 2. [核心特性](#核心特性)
@@ -44,6 +65,7 @@
 - **N extends AbstractNode<I, E, N>** - 节点，树中的节点对象，包含元素和关系信息
 
 ### demo
+
 [更多使用案例](https://github.com/Dao1230source/demo/tree/main/utility/tree)   
 [性能测试报告](https://github.com/Dao1230source/demo/blob/main/utility/tree/JMH-REPORT.md)
 
@@ -70,12 +92,14 @@
 ```
 
 **读锁保护的操作：**
+
 - `find(predicate)` - 查找符合条件的节点，O(n)
 - `get(predicate)` - 获取第一个符合条件的节点
 - `getById(id)` - 按ID快速查找，O(1) ⭐
 - `forEach(biConsumer)` - 遍历所有节点，O(n)
 
 **写锁保护的操作：**
+
 - `add(elements)` - 添加元素集合，O(n·m)（n=元素数，m=平均树深度）
 - `remove(predicate)` - 删除符合条件的节点，O(n)
 - `clear()` - 清空树，O(n)
@@ -100,6 +124,7 @@
 ```
 
 **优势：**
+
 - 检测任意深度的循环
 - 支持多父节点DAG
 - 自动处理复杂的循环场景
@@ -113,18 +138,14 @@ Tree提供两个处理器钩子点，用于自定义业务逻辑：
 public void processorExample() {
     // 1️⃣ 节点创建后处理器
     // 在节点创建完成后、添加到树前调用
-    tree.setAfterCreateHandler(node -> {
-        node.getElement().setCreateTime(System.currentTimeMillis());
-    });
+    tree.setAfterCreateHandler(node -> node.getElement().setCreateTime(System.currentTimeMillis()));
 
     // 2️⃣ 节点添加后处理器
     // 在节点添加到树后调用，可获得parent信息
-    tree.setAfterAddHandler((node, parent) -> {
-        node.getElement().setLevel(
+    tree.setAfterAddHandler((node, parent) -> node.getElement().setLevel(
             parent.getElement() == null ? 0 :
-            parent.getElement().getLevel() + 1
-        );
-    });
+                    parent.getElement().getLevel() + 1
+    ));
 }
 ```
 
@@ -135,13 +156,13 @@ public void customIdExample() {
     // 默认：调用 element.getId()
     // 自定义ID获取方式
     tree.setIdGetter(node ->
-        node.getElement().getCustomId()
+            node.getElement().getCustomId()
     );
 
     // 默认：调用 element.getParentId()
     // 自定义父ID获取方式
     tree.setParentIdGetter(node ->
-        node.getElement().getParentCode()
+            node.getElement().getParentCode()
     );
 }
 ```
@@ -150,7 +171,7 @@ public void customIdExample() {
 
 ## 架构设计
 
-- [架构UML图](Tree_Architecture.png)
+- [架构UML图](https://github.com/Dao1230source/utility/blob/main/Tree_Architecture.png)
 
 ### 数据结构
 
@@ -260,7 +281,7 @@ remove(predicate)
 public void defaultNodeExample() {
     // 创建树
     Tree<Integer, MyElement, DefaultNode<Integer, MyElement>> tree =
-        Tree.of(new DefaultNode<>());
+            Tree.of(new DefaultNode<>());
 
     // 特点：
     // - 最小化实现
@@ -282,11 +303,11 @@ public void defaultNodeExample() {
 public void deepNodeExample() {
     // rootIsZero=true: 根节点深度为0，向下递增
     Tree<Integer, MyElement, DeepNode<Integer, MyElement>> tree1 =
-        Tree.of(new DeepNode<>(true));
+            Tree.of(new DeepNode<>(true));
 
     // rootIsZero=false: 叶节点深度为0，向上递增
     Tree<Integer, MyElement, DeepNode<Integer, MyElement>> tree2 =
-        Tree.of(new DeepNode<>(false));
+            Tree.of(new DeepNode<>(false));
 
     // 获取节点深度
     Integer depth = node.getDepth();
@@ -325,7 +346,7 @@ rootIsZero=false 时（从叶向上）：
 public void enhanceNodeExample() {
     // 创建树
     Tree<Integer, MyElement, EnhanceNode<Integer, MyElement>> tree =
-        Tree.of(new EnhanceNode<>());
+            Tree.of(new EnhanceNode<>());
 
     // 特点：
     // - 一个节点可以有多个父节点
@@ -375,15 +396,15 @@ tree.add([
 public void flatNodeExample() {
     // 定义属性提取函数
     List<SFunction<MyElement, Object>> getters = Arrays.asList(
-        MyElement::getId,
-        MyElement::getName,
-        MyElement::getCode,
-        MyElement::getDescription
+            MyElement::getId,
+            MyElement::getName,
+            MyElement::getCode,
+            MyElement::getDescription
     );
 
     FlatNode<Integer, MyElement> root = new FlatNode<>(getters);
     Tree<Integer, MyElement, FlatNode<Integer, MyElement>> tree =
-        Tree.of(root);
+            Tree.of(root);
 
     // JSON序列化时，属性直接在节点上
     // {
@@ -435,15 +456,13 @@ public class DeptElement implements Element<Integer> {
 public void createTree() {
     // 方式1：最简单，选择合适的节点类型
     Tree<Integer, DeptElement, DefaultNode<Integer, DeptElement>> tree =
-        Tree.of(new DefaultNode<>());
+            Tree.of(new DefaultNode<>());
 
     // 方式2：配置处理器（可选）
-    tree.setAfterAddHandler((node, parent) -> {
-        node.getElement().setLevel(
+    tree.setAfterAddHandler((node, parent) -> node.getElement().setLevel(
             parent.getElement() == null ? 0 :
-            parent.getElement().getLevel() + 1
-        );
-    });
+                    parent.getElement().getLevel() + 1
+    ));
 }
 ```
 
@@ -452,11 +471,11 @@ public void createTree() {
 ```java
 public void addData() {
     List<DeptElement> depts = Arrays.asList(
-        new DeptElement(1, null, "公司"),       // 根节点
-        new DeptElement(2, 1, "技术部"),        // 子节点
-        new DeptElement(3, 1, "市场部"),
-        new DeptElement(4, 2, "开发组"),        // 孙节点
-        new DeptElement(5, 2, "测试组")
+            new DeptElement(1, null, "公司"),       // 根节点
+            new DeptElement(2, 1, "技术部"),        // 子节点
+            new DeptElement(3, 1, "市场部"),
+            new DeptElement(4, 2, "开发组"),        // 孙节点
+            new DeptElement(5, 2, "测试组")
     );
 
     tree.add(depts);  // 一次操作添加所有元素
@@ -472,18 +491,16 @@ public void queryData() {
 
     // 条件查询
     List<DefaultNode<Integer, DeptElement>> techDepts = tree.find(
-        n -> n.getElement().getName().contains("技术")
+            n -> n.getElement().getName().contains("技术")
     );
 
     // 获取第一个匹配
     Optional<DefaultNode<Integer, DeptElement>> first = tree.get(
-        n -> n.getId() > 10
+            n -> n.getId() > 10
     );
 
     // 遍历所有节点
-    tree.forEach((id, node) -> {
-        System.out.println(id + " -> " + node.getElement().getName());
-    });
+    tree.forEach((id, node) -> System.out.println(id + " -> " + node.getElement().getName()));
 }
 ```
 
@@ -529,47 +546,47 @@ public void customIdGetter() {
 
 ### Tree 核心API
 
-| 方法 | 参数 | 返回值 | 时间复杂度 | 说明 |
-|------|------|--------|----------|------|
-| `of(root)` | N | Tree | O(1) | 工厂方法，创建树实例 |
-| `add(elements)` | Collection | N | O(n·m) | 批量添加元素，n=元素数，m=平均树深度 |
-| `find(predicate)` | Predicate | List | O(n) | 查找符合条件的所有节点 |
-| `get(predicate)` | Predicate | Optional | O(n) | 获取第一个符合条件的节点 |
-| `getById(id)` | I | N | **O(1)** | 按ID查询，最快！ |
-| `remove(predicate)` | Predicate | void | O(n) | 删除符合条件的节点，级联删除子节点 |
-| `clear()` | - | void | O(n) | 清空树，释放所有资源 |
-| `size()` | - | int | O(1) | 获取树中节点数 |
-| `forEach(consumer)` | BiConsumer | void | O(n) | 遍历所有节点 |
-| `cast(supplier, mapper)` | 两个函数 | Tree | O(n) | 类型转换，创建新树 |
+| 方法                       | 参数         | 返回值      | 时间复杂度    | 说明                   |
+|--------------------------|------------|----------|----------|----------------------|
+| `of(root)`               | N          | Tree     | O(1)     | 工厂方法，创建树实例           |
+| `add(elements)`          | Collection | N        | O(n·m)   | 批量添加元素，n=元素数，m=平均树深度 |
+| `find(predicate)`        | Predicate  | List     | O(n)     | 查找符合条件的所有节点          |
+| `get(predicate)`         | Predicate  | Optional | O(n)     | 获取第一个符合条件的节点         |
+| `getById(id)`            | I          | N        | **O(1)** | 按ID查询，最快！            |
+| `remove(predicate)`      | Predicate  | void     | O(n)     | 删除符合条件的节点，级联删除子节点    |
+| `clear()`                | -          | void     | O(n)     | 清空树，释放所有资源           |
+| `size()`                 | -          | int      | O(1)     | 获取树中节点数              |
+| `forEach(consumer)`      | BiConsumer | void     | O(n)     | 遍历所有节点               |
+| `cast(supplier, mapper)` | 两个函数       | Tree     | O(n)     | 类型转换，创建新树            |
 
 ### AbstractNode API
 
-| 方法 | 参数 | 返回值 | 说明 |
-|------|------|--------|------|
-| `getElement()` | - | E | 获取节点的业务元素 |
-| `setElement(e)` | E | void | 设置节点的业务元素 |
-| `getParent()` | - | N | 获取父节点 |
-| `getChildren()` | - | List<N> | 获取子节点列表（不可修改副本）|
-| `getId()` | - | I | 获取节点ID（来自element） |
-| `getParentId()` | - | I | 获取父节点ID（来自element） |
-| `addChild(child)` | N | void | 添加子节点 |
-| `removeChild(child)` | N | void | 移除子节点 |
-| `removeFromParent()` | - | void | 从父节点移除此节点 |
-| `findParents()` | - | List<N> | 获取所有父节点（DefaultNode返回0-1个，EnhanceNode返回多个） |
-| `emptyNode()` | - | N | 创建空节点，子类必须实现 |
-| `nodeHandler()` | - | void | 节点处理钩子，子类可覆盖 |
-| `clear()` | - | void | 清理节点所有引用，释放内存 |
+| 方法                   | 参数 | 返回值     | 说明                                         |
+|----------------------|----|---------|--------------------------------------------|
+| `getElement()`       | -  | E       | 获取节点的业务元素                                  |
+| `setElement(e)`      | E  | void    | 设置节点的业务元素                                  |
+| `getParent()`        | -  | N       | 获取父节点                                      |
+| `getChildren()`      | -  | List<N> | 获取子节点列表（不可修改副本）                            |
+| `getId()`            | -  | I       | 获取节点ID（来自element）                          |
+| `getParentId()`      | -  | I       | 获取父节点ID（来自element）                         |
+| `addChild(child)`    | N  | void    | 添加子节点                                      |
+| `removeChild(child)` | N  | void    | 移除子节点                                      |
+| `removeFromParent()` | -  | void    | 从父节点移除此节点                                  |
+| `findParents()`      | -  | List<N> | 获取所有父节点（DefaultNode返回0-1个，EnhanceNode返回多个） |
+| `emptyNode()`        | -  | N       | 创建空节点，子类必须实现                               |
+| `nodeHandler()`      | -  | void    | 节点处理钩子，子类可覆盖                               |
+| `clear()`            | -  | void    | 清理节点所有引用，释放内存                              |
 
 ### 静态工具方法
 
 ```java
 public void staticUtilityMethods() {
     // 获取节点到根的路径
-    List<N> superiorNodes = Node.superiorNodes(node, includeItself=true);
+    List<N> superiorNodes = Node.superiorNodes(node, includeItself = true);
     // 返回: [node, parent, grandparent, ..., root]
 
     // 获取节点的所有递归子节点
-    List<N> descendants = Node.recursiveChildren(node, includeItself=true);
+    List<N> descendants = Node.recursiveChildren(node, includeItself = true);
     // 返回: [node, child1, child1.1, child2, ...]
 }
 ```
@@ -584,14 +601,14 @@ public void staticUtilityMethods() {
 public void treeTypeCast() {
     // 场景：从DefaultNode树转换到DeepNode树
     Tree<Integer, DeptElement, DefaultNode<Integer, DeptElement>>
-        sourceTree = Tree.of(new DefaultNode<>());
+            sourceTree = Tree.of(new DefaultNode<>());
     sourceTree.add(elements);
 
     Tree<Integer, DeptElement, DeepNode<Integer, DeptElement>>
-        targetTree = sourceTree.cast(
+            targetTree = sourceTree.cast(
             () -> Tree.of(new DeepNode<>(true)),  // 创建新树
             element -> element                      // 元素映射（这里不变）
-        );
+    );
 
     // 现在targetTree中的所有节点都自动计算了深度！
 }
@@ -603,7 +620,7 @@ public void treeTypeCast() {
 public void multiParentDAG() {
     // 创建EnhanceNode树（支持多父节点）
     Tree<Integer, MyElement, EnhanceNode<Integer, MyElement>> dagTree =
-        Tree.of(new EnhanceNode<>());
+            Tree.of(new EnhanceNode<>());
 
     // 添加数据（支持同一个节点有多个父节点）
     dagTree.add(elements);
@@ -613,9 +630,7 @@ public void multiParentDAG() {
     List<EnhanceNode<Integer, MyElement>> parents = node.findParents();
 
     // 遍历所有父节点
-    parents.forEach(parent -> {
-        System.out.println("Parent: " + parent.getElement().getName());
-    });
+    parents.forEach(parent -> System.out.println("Parent: " + parent.getElement().getName()));
 
     // 子节点自动排序
     List<EnhanceNode<Integer, MyElement>> sortedChildren = node.getChildren();
@@ -629,23 +644,23 @@ public void multiParentDAG() {
 public void propertyFlatten() {
     // 定义属性提取函数
     List<SFunction<MyElement, Object>> propertyGetters = Arrays.asList(
-        element -> element.getId(),
-        element -> element.getName(),
-        element -> element.getCode(),
-        element -> element.getDescription(),
-        element -> element.getCreateTime()
+            element -> element.getId(),
+            element -> element.getName(),
+            element -> element.getCode(),
+            element -> element.getDescription(),
+            element -> element.getCreateTime()
     );
 
     FlatNode<Integer, MyElement> root = new FlatNode<>(propertyGetters);
     Tree<Integer, MyElement, FlatNode<Integer, MyElement>> flatTree =
-        Tree.of(root);
+            Tree.of(root);
 
     flatTree.add(elements);
 
     // 序列化为JSON
     ObjectMapper mapper = new ObjectMapper();
     String json = mapper.writerWithDefaultPrettyPrinter()
-        .writeValueAsString(flatTree.getRoot());
+            .writeValueAsString(flatTree.getRoot());
 
     // JSON输出（属性直接在节点上）：
     // {
@@ -677,8 +692,8 @@ public void depthAutoCalculation() {
     tree1.forEach((id, node) -> {
         int depth = node.getDepth();
         System.out.println(
-            "  ".repeat(depth) +
-            node.getElement().getName()
+                "  ".repeat(depth) +
+                        node.getElement().getName()
         );
     });
 
@@ -696,10 +711,10 @@ public void depthAutoCalculation() {
 public void circularReferenceDetection() {
     // 自动检测循环
     List<Element> circularData = Arrays.asList(
-        new Element(1, null),   // 根
-        new Element(2, 1),      // 1的子节点
-        new Element(3, 2),      // 2的子节点
-        new Element(1, 3)       // 试图让1成为3的子节点（形成循环！）
+            new Element(1, null),   // 根
+            new Element(2, 1),      // 1的子节点
+            new Element(3, 2),      // 2的子节点
+            new Element(1, 3)       // 试图让1成为3的子节点（形成循环！）
     );
 
     try {
@@ -779,10 +794,10 @@ public void dataPreprocessing() {
 ```java
 public void efficientQuery() {
     // ✅ 按ID查询（最快，O(1)）
-    Node node = tree.getById(id);  // 毫秒级
+    Node<?, ?, ?> node = tree.getById(id);  // 毫秒级
 
     // ❌ 低效的查询方式
-    Optional<Node> node = tree.find(n -> n.getId().equals(id));  // O(n)，可能秒级
+    Optional<Node<?, ?, ?>> node = tree.find(n -> n.getId().equals(id));  // O(n)，可能秒级
 }
 ```
 
@@ -883,15 +898,22 @@ if (needsCleanup) {
 public class DepartmentExample {
 
     record Dept(Integer id, Integer parentId, String name, int level)
-        implements Element<Integer> {
-        @Override public Integer getId() { return id; }
-        @Override public Integer getParentId() { return parentId; }
+            implements Element<Integer> {
+        @Override
+        public Integer getId() {
+            return id;
+        }
+
+        @Override
+        public Integer getParentId() {
+            return parentId;
+        }
     }
 
-    public static void main(String[] args) {
+    static void main(String[] args) {
         // 1. 创建树
         Tree<Integer, Dept, DefaultNode<Integer, Dept>> tree =
-            Tree.of(new DefaultNode<>());
+                Tree.of(new DefaultNode<>());
 
         // 2. 设置处理器计算层级
         tree.setAfterAddHandler((node, parent) -> {
@@ -902,13 +924,13 @@ public class DepartmentExample {
 
         // 3. 添加数据
         List<Dept> depts = Arrays.asList(
-            new Dept(1, null, "集团总部", 0),
-            new Dept(2, 1, "技术中心", 1),
-            new Dept(3, 1, "市场部", 1),
-            new Dept(4, 2, "开发部", 2),
-            new Dept(5, 2, "测试部", 2),
-            new Dept(6, 4, "后端组", 3),
-            new Dept(7, 4, "前端组", 3)
+                new Dept(1, null, "集团总部", 0),
+                new Dept(2, 1, "技术中心", 1),
+                new Dept(3, 1, "市场部", 1),
+                new Dept(4, 2, "开发部", 2),
+                new Dept(5, 2, "测试部", 2),
+                new Dept(6, 4, "后端组", 3),
+                new Dept(7, 4, "前端组", 3)
         );
         tree.add(depts);
 
@@ -921,9 +943,7 @@ public class DepartmentExample {
         // 5. 查询
         DefaultNode<Integer, Dept> techDept = tree.getById(2);
         System.out.println("\n技术中心的子部门:");
-        techDept.getChildren().forEach(child -> {
-            System.out.println("  - " + child.getElement().name());
-        });
+        techDept.getChildren().forEach(child -> System.out.println("  - " + child.getElement().name()));
     }
 }
 
@@ -947,24 +967,35 @@ public class DepartmentExample {
 public class FileSystemExample {
 
     record File(String path, String parentPath)
-        implements EnhanceElement<String> {
-        @Override public String getId() { return path; }
-        @Override public String getParentId() { return parentPath; }
-        @Override public int compareTo(File other) { return path.compareTo(other.path); }
+            implements EnhanceElement<String> {
+        @Override
+        public String getId() {
+            return path;
+        }
+
+        @Override
+        public String getParentId() {
+            return parentPath;
+        }
+
+        @Override
+        public int compareTo(File other) {
+            return path.compareTo(other.path);
+        }
     }
 
-    public static void main(String[] args) {
+    static void main(String[] args) {
         // 使用EnhanceNode支持多父节点
         Tree<String, File, EnhanceNode<String, File>> fileTree =
-            Tree.of(new EnhanceNode<>());
+                Tree.of(new EnhanceNode<>());
 
         List<File> files = Arrays.asList(
-            new File("/", null),
-            new File("/home", "/"),
-            new File("/home/user", "/home"),
-            new File("/home/user/documents", "/home/user"),
-            new File("/link-to-documents", "/"),              // 符号链接1
-            new File("/link-to-documents", "/home/user")      // 符号链接2（第二个父节点）
+                new File("/", null),
+                new File("/home", "/"),
+                new File("/home/user", "/home"),
+                new File("/home/user/documents", "/home/user"),
+                new File("/link-to-documents", "/"),              // 符号链接1
+                new File("/link-to-documents", "/home/user")      // 符号链接2（第二个父节点）
         );
 
         fileTree.add(files);
@@ -972,15 +1003,11 @@ public class FileSystemExample {
         // 查询符号链接的所有父目录
         EnhanceNode<String, File> link = fileTree.getById("/link-to-documents");
         System.out.println("符号链接 /link-to-documents 的所有父目录:");
-        link.findParents().forEach(parent -> {
-            System.out.println("  ← " + parent.getElement().path());
-        });
+        link.findParents().forEach(parent -> System.out.println("  ← " + parent.getElement().path()));
 
         // 遍历子节点（已排序）
         System.out.println("\n/ 目录下的内容（自动排序）:");
-        fileTree.getById("/").getChildren().forEach(child -> {
-            System.out.println("  ├─ " + child.getElement().path());
-        });
+        fileTree.getById("/").getChildren().forEach(child -> System.out.println("  ├─ " + child.getElement().path()));
     }
 }
 
@@ -1000,28 +1027,35 @@ public class FileSystemExample {
 public class MenuExample {
 
     record Menu(Integer id, Integer parentId, String name, String url, String icon)
-        implements Element<Integer> {
-        @Override public Integer getId() { return id; }
-        @Override public Integer getParentId() { return parentId; }
+            implements Element<Integer> {
+        @Override
+        public Integer getId() {
+            return id;
+        }
+
+        @Override
+        public Integer getParentId() {
+            return parentId;
+        }
     }
 
-    public static void main(String[] args) throws Exception {
+    static void main(String[] args) throws Exception {
         // 属性扁平化
         List<SFunction<Menu, Object>> getters = Arrays.asList(
-            Menu::name,
-            Menu::url,
-            Menu::icon
+                Menu::name,
+                Menu::url,
+                Menu::icon
         );
 
         Tree<Integer, Menu, FlatNode<Integer, Menu>> tree =
-            Tree.of(new FlatNode<>(getters));
+                Tree.of(new FlatNode<>(getters));
 
         List<Menu> menus = Arrays.asList(
-            new Menu(1, null, "系统管理", "/system", "setting"),
-            new Menu(2, 1, "用户管理", "/system/user", "user"),
-            new Menu(3, 1, "角色管理", "/system/role", "role"),
-            new Menu(4, 2, "添加用户", "/system/user/add", "add"),
-            new Menu(5, 2, "编辑用户", "/system/user/edit", "edit")
+                new Menu(1, null, "系统管理", "/system", "setting"),
+                new Menu(2, 1, "用户管理", "/system/user", "user"),
+                new Menu(3, 1, "角色管理", "/system/role", "role"),
+                new Menu(4, 2, "添加用户", "/system/user/add", "add"),
+                new Menu(5, 2, "编辑用户", "/system/user/edit", "edit")
         );
 
         tree.add(menus);
@@ -1029,7 +1063,7 @@ public class MenuExample {
         // JSON序列化（属性扁平化在节点上）
         ObjectMapper mapper = new ObjectMapper();
         String json = mapper.writerWithDefaultPrettyPrinter()
-            .writeValueAsString(tree.getRoot());
+                .writeValueAsString(tree.getRoot());
         System.out.println(json);
     }
 }
@@ -1070,6 +1104,7 @@ public class MenuExample {
 ### Q1: 应该选择哪种节点类型？
 
 **A:** 优先选择功能最少的满足需求的类型：
+
 - **DefaultNode** - 简单树，最快速（推荐99%的场景）
 - **DeepNode** - 需要深度信息
 - **EnhanceNode** - 需要多父节点DAG
@@ -1078,6 +1113,7 @@ public class MenuExample {
 ### Q2: 树支持多大的规模？
 
 **A:** 理论上没有上限（受内存限制）。实测：
+
 - 100K节点：10ms级别add操作
 - 1M节点：100ms级别add操作
 - 查询：O(1)按ID查询，毫秒级；O(n)条件查询
@@ -1085,6 +1121,7 @@ public class MenuExample {
 ### Q3: 支持并发吗？
 
 **A:** 完全支持。使用ReentrantReadWriteLock：
+
 - 读操作并发：多线程可同时查询
 - 写操作互斥：add/remove/clear独占访问
 - 通过测试：1000+并发线程
@@ -1092,6 +1129,7 @@ public class MenuExample {
 ### Q4: 如何处理循环引用？
 
 **A:** 自动检测和抛异常：
+
 ```java
 public void handleCircularReference() {
     try {
@@ -1105,6 +1143,7 @@ public void handleCircularReference() {
 ### Q5: 如何更新节点数据？
 
 **A:** 推荐通过remove/add周期：
+
 ```java
 public void updateNodeData() {
     tree.remove(n -> n.getId().equals(targetId));
@@ -1115,6 +1154,7 @@ public void updateNodeData() {
 ### Q6: 性能优化建议？
 
 **A:**
+
 1. 批量add()，不要单个add()
 2. 优先用getById()而不是find()
 3. 选择最轻的节点类型
@@ -1123,6 +1163,7 @@ public void updateNodeData() {
 ### Q7: 可以JSON序列化吗？
 
 **A:** 完全支持，使用Jackson：
+
 ```java
 public void jsonSerialization() throws Exception {
     ObjectMapper mapper = new ObjectMapper();
@@ -1135,6 +1176,7 @@ FlatNode可以扁平化属性到JSON。
 ### Q8: 如何删除一个节点及其所有子节点？
 
 **A:** 调用remove()会自动级联删除子节点：
+
 ```java
 public void deleteWithChildren() {
     tree.remove(n -> n.getId().equals(targetId));
@@ -1151,21 +1193,25 @@ public void deleteWithChildren() {
 ### 核心优势
 
 ✨ **功能完整**
+
 - 多种节点类型
 - 灵活的处理器链
 - 完整的查询能力
 
 ⚡ **高性能**
+
 - O(1)ID查询
 - O(n·α(n))循环检测
 - 批量操作优化
 
 🔒 **线程安全**
+
 - 读写锁保护
 - 支持高并发
 - 生产级别
 
 📚 **易于使用**
+
 - 简洁的API
 - 丰富的示例
 - 完整的文档
@@ -1191,6 +1237,50 @@ public void deleteWithChildren() {
 
 ---
 
-**文档更新时间**: 2026-03-04
-**版本**: 2.1
-**状态**: ✅ 生产就绪
+**Document Version**: 2.1 | **文档版本**: 2.1  
+**Last Updated**: 2026-03-04 | **更新时间**: 2026-03-04  
+**Status**: ✅ Production Ready | **状态**: ✅ 生产就绪
+
+---
+
+## 🏷️ Tags | 标签
+
+**Keywords**: Java, Tree Data Structure, DAG, Directed Acyclic Graph, Tree Node, Binary Tree, N-ary Tree, Organization
+Chart, Hierarchy, Concurrent, Thread-Safe, Union-Find, Circular Reference Detection, JSON Serialization, Jackson
+
+**关键词**: Java树形结构, 树数据结构, 有向无环图, DAG, 组织架构树, 层级结构, 并发安全, 循环检测, 并查集, JSON序列化,
+父子关系, 多叉树
+
+**Node Types**: DefaultNode, DeepNode, EnhanceNode, FlatNode, AbstractNode, TreeNode
+
+**节点类型**: 默认节点, 深度节点, 增强节点, 扁平节点, 抽象节点, 树节点
+
+**Use Cases**: Organization chart, Department hierarchy, Menu system, Category tree, File system, Permission system,
+Knowledge graph, Task dependency, Comment thread, Product category
+
+**使用场景**: 组织架构图, 部门层级, 菜单系统, 分类树, 文件系统, 权限系统, 知识图谱, 任务依赖, 评论树, 商品分类
+
+**Performance**: O(1) ID lookup, O(n) traversal, concurrent read, thread-safe write, Union-Find algorithm
+
+**性能特性**: O(1) ID查询, O(n) 遍历, 并发读取, 线程安全写入, 并查集算法
+
+---
+
+## 🔗 Related Projects | 相关项目
+
+- [Assign](Assign.md) - Java Batch Assignment Tool
+- [utility](https://github.com/Dao1230source/utility) - Full utility library
+- [demo](https://github.com/Dao1230source/demo) - Usage examples and performance tests
+- [JMH Report](https://github.com/Dao1230source/demo/blob/main/utility/tree/JMH-REPORT.md) - Performance benchmark
+  results
+
+---
+
+## 📊 Alternatives Comparison | 替代方案对比
+
+| Library                    | Thread-Safe       | DAG Support   | Circular Detection | Node Types |
+|----------------------------|-------------------|---------------|--------------------|------------|
+| **This Library**           | ✅ Read-Write Lock | ✅ EnhanceNode | ✅ Union-Find       | 4+ types   |
+| Apache Commons Collections | ❌ No              | ❌ No          | ❌ No               | 1 type     |
+| Guava TreeTraverser        | ❌ No              | ❌ No          | ❌ No               | 1 type     |
+| Custom Implementation      | ⚠️ Manual         | ⚠️ Manual     | ⚠️ Manual          | 1 type     |
