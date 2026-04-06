@@ -1184,6 +1184,44 @@ public void deleteWithChildren() {
 }
 ```
 
+### Q9: 如何正确使用tree.find()方法获取特定类型的元素？
+
+**A:** tree.find()返回的是节点List<N>，需要从节点中获取element。以下是正确的用法：
+
+```java
+public void correctFindUsage() {
+    // ❌ 错误：将Node直接cast为Element类型
+    tree.find(n -> n.getElement() instanceof ClassDocElement)
+        .stream()
+        .map(ClassDocElement.class::cast)  // 错误！Node不是Element
+        .toList();
+
+    // ✅ 正确：从node获取element后再cast
+    tree.find(n -> Objects.nonNull(n.getElement()) && n.getElement() instanceof ClassDocElement)
+        .stream()
+        .map(n -> (ClassDocElement) n.getElement())  // 正确！从node获取element
+        .toList();
+
+    // 更简洁的写法（推荐）
+    List<ClassDocElement> classes = tree.find(
+        n -> Objects.nonNull(n.getElement()) && n.getElement() instanceof ClassDocElement
+    ).stream().map(n -> (ClassDocElement) n.getElement()).toList();
+
+    // 带额外过滤条件的例子：获取某个类的所有方法
+    List<MethodDocElement> methods = tree.find(n -> {
+        DocElement e = n.getElement();
+        return Objects.nonNull(e) && e instanceof MethodDocElement method
+            && "com.example.MyClass".equals(method.getParentId());
+    }).stream().map(n -> (MethodDocElement) n.getElement()).toList();
+}
+```
+
+**关键点：**
+1. tree.find()返回的是`List<Node>`，不是`List<Element>`
+2. 需要调用`node.getElement()`获取业务元素
+3. 使用`Objects.nonNull(n.getElement())`检查element是否为空（根节点element为null）
+4. 使用`(ElementType) n.getElement()`进行类型转换
+
 ---
 
 ## 总结
