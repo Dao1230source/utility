@@ -12,6 +12,7 @@ import org.source.utility.constant.Constants;
 import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.utils.Jsons;
 import org.source.utility.utils.Streams;
+import org.source.utility.utils.Timings;
 import org.springframework.lang.Nullable;
 import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
 import org.springframework.util.CollectionUtils;
@@ -25,8 +26,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
-@JsonIncludeProperties({"name", "depth", "interruptStrategy", "executor", "timeout", "acquires", "branches"})
-@JsonPropertyOrder({"name", "depth", "interruptStrategy", "executor", "timeout", "acquires", "branches"})
+@JsonIncludeProperties({"name", "depth", "interruptStrategy", "executor", "timeout", "invokeTiming", "acquires", "branches"})
+@JsonPropertyOrder({"name", "depth", "interruptStrategy", "executor", "timeout", "invokeTiming", "acquires", "branches"})
 public class Assign<E> {
     private static final int ROOT_DEPTH = 1;
     private static final int PROCESSORS = Runtime.getRuntime().availableProcessors();
@@ -92,6 +93,11 @@ public class Assign<E> {
      * 获取 acquire 的执行计数
      */
     AtomicInteger acquireCounter;
+    /**
+     * invoke方法时间统计
+     */
+    @Getter
+    private Timings.Timing invokeTiming;
 
     public Assign(Collection<E> mainData, int depth, @Nullable Assign<E> superAssign) {
         this.mainData = Collections.unmodifiableCollection(mainData);
@@ -344,8 +350,10 @@ public class Assign<E> {
     }
 
     public Assign<E> invoke() {
+        this.invokeTiming = Timings.start();
         if (CollectionUtils.isEmpty(this.mainData)) {
             this.status = InvokeStatusEnum.ALL_SUCCESS;
+            this.invokeTiming.end();
             return this;
         }
         log.debug("Assign name:{}", this.name);
@@ -359,12 +367,14 @@ public class Assign<E> {
             this.status = InvokeStatusEnum.PARTIAL_FAIL;
         }
         log.debug("status:{}", this.status);
+        this.invokeTiming.end();
         if (this.interruptStrategy.interrupt(this.status)) {
             log.debug("assign end, interruptStrategy:{}", this.interruptStrategy);
             return this;
         }
         this.invokeBranches();
         this.invokeSubs();
+        this.invokeTiming.end();
         if (Objects.isNull(this.superAssign)) {
             log.info("assign invoke report:{}", Jsons.str(this));
         }

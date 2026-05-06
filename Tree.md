@@ -57,6 +57,7 @@ Maven: io.github.dao1230source:utility
 - ✅ **类型多样** - 提供默认、深度、扁平、增强等多种节点实现
 - ✅ **JSON友好** - 完整的Jackson序列化支持
 - ✅ **高性能** - O(1)的ID查询，O(n·α(n))的循环检测
+- ✅ **扩展缓存** - 支持按多字段建立缓存，O(1)扩展属性查询
 
 ### 基本概念
 
@@ -151,21 +152,67 @@ public void processorExample() {
 
 ### 5. 灵活的ID和父ID提取
 
-```java
-public void customIdExample() {
-    // 默认：调用 element.getId()
-    // 自定义ID获取方式
-    tree.setIdGetter(node ->
-            node.getElement().getCustomId()
-    );
+Tree 支持 `IdExtend` 扩展机制，允许自定义 ID 和父 ID 的获取方式，并支持扩展属性缓存以提升查询性能。
 
-    // 默认：调用 element.getParentId()
-    // 自定义父ID获取方式
-    tree.setParentIdGetter(node ->
-            node.getElement().getParentCode()
-    );
+#### IdExtend - ID 扩展机制
+
+```java
+public void idExtendExample() {
+    // 默认：调用 element.getId() 和 element.getParentId()
+    // 使用 IdExtend 自定义 ID 获取方式
+    
+    // 创建自定义 ID 扩展
+    IdExtend<String, MyElement, DefaultNode<String, MyElement>> customIdExtend = 
+        new IdExtend<>("customId",
+            node -> node.getElement().getCustomId(),       // 自定义 ID 获取
+            node -> node.getElement().getParentCode()      // 自定义父 ID 获取
+        );
+    
+    tree.setIdExtend(customIdExtend);
+    
+    // 现在 add() 和查询操作会使用自定义的 ID 获取方式
 }
 ```
+
+#### 扩展属性缓存
+
+Tree 支持配置扩展属性缓存，通过额外字段快速查询节点：
+
+```java
+public void extendCacheExample() {
+    // 配置扩展属性缓存
+    // 除了默认的 ID 缓存，还可以按其他字段建立缓存
+    
+    List<IdExtend<String, MyElement, DefaultNode<String, MyElement>>> idExtends = Arrays.asList(
+        IdExtend.defaultIdExtend(),  // 默认 ID 缓存
+        new IdExtend<>("code", node -> node.getElement().getCode(), node -> null),
+        new IdExtend<>("name", node -> node.getElement().getName(), node -> null)
+    );
+    
+    tree.setExtendCacheIdExtends(idExtends);
+    
+    // 添加数据时自动建立扩展缓存
+    tree.add(elements);
+    
+    // 通过扩展属性快速查询（O(1)）
+    DefaultNode<String, MyElement> node = tree.getByKey("code", "EMP001").orElse(null);
+    DefaultNode<String, MyElement> node2 = tree.getByKey("name", "张三").orElse(null);
+}
+```
+
+#### API 说明
+
+| 方法 | 说明 |
+|------|------|
+| `setIdExtend(IdExtend)` | 设置主 ID 扩展配置 |
+| `setExtendCacheIdExtends(List<IdExtend>)` | 设置扩展属性缓存列表 |
+| `getByKey(String fieldName, I key)` | 通过扩展属性快速查询节点 |
+| `obtainNodeFromCache(I id, IdExtend)` | 从指定缓存获取节点 |
+
+**使用场景：**
+- ✓ 需要通过多个字段查询节点（如同时按 ID、编码、名称查询）
+- ✓ 自定义 ID 逻辑（如复合 ID、派生 ID）
+- ✓ 提升批量查询性能（避免遍历整个树）
 
 ---
 
@@ -180,6 +227,8 @@ Tree<I, E, N>
 ├── root: N                          // 虚拟根节点（element=null）
 ├── sourceElements: List<E>          // 源元素副本（用于序列化和重建）
 ├── idMap: ConcurrentHashMap<I, N>   // ID→节点映射（O(1)查找）
+├── extendCachMap: Map<String, Map<I, N>>  // 扩展属性缓存（O(1)多字段查询）
+├── idExtend: IdExtend<I, E, N>      // ID扩展配置
 ├── unionFind: UnionFind<I>          // 循环检测用并查集（延迟初始化）
 └── locks: ReadWriteLock             // 并发控制锁
     ├── writeLock                    // 写操作独占锁
@@ -553,11 +602,14 @@ public void customIdGetter() {
 | `find(predicate)`        | Predicate  | List     | O(n)     | 查找符合条件的所有节点          |
 | `get(predicate)`         | Predicate  | Optional | O(n)     | 获取第一个符合条件的节点         |
 | `getById(id)`            | I          | N        | **O(1)** | 按ID查询，最快！            |
+| `getByKey(fieldName, key)` | String, I | Optional | **O(1)** | 按扩展属性查询（需配置扩展缓存） |
 | `remove(predicate)`      | Predicate  | void     | O(n)     | 删除符合条件的节点，级联删除子节点    |
 | `clear()`                | -          | void     | O(n)     | 清空树，释放所有资源           |
 | `size()`                 | -          | int      | O(1)     | 获取树中节点数              |
 | `forEach(consumer)`      | BiConsumer | void     | O(n)     | 遍历所有节点               |
 | `cast(supplier, mapper)` | 两个函数       | Tree     | O(n)     | 类型转换，创建新树            |
+| `setIdExtend(idExtend)`  | IdExtend   | void     | O(1)     | 设置 ID 扩展配置           |
+| `setExtendCacheIdExtends(list)` | List | void | O(1) | 设置扩展属性缓存列表          |
 
 ### AbstractNode API
 
@@ -1275,8 +1327,8 @@ public void correctFindUsage() {
 
 ---
 
-**Document Version**: 2.1 | **文档版本**: 2.1  
-**Last Updated**: 2026-03-04 | **更新时间**: 2026-03-04  
+**Document Version**: 2.2 | **文档版本**: 2.2  
+**Last Updated**: 2026-05-06 | **更新时间**: 2026-05-06  
 **Status**: ✅ Production Ready | **状态**: ✅ 生产就绪
 
 ---
