@@ -5,7 +5,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
 import java.util.*;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 public interface Node<I extends Comparable<I>, E extends Element<I>, N extends Node<I, E, N>> {
@@ -65,19 +65,19 @@ public interface Node<I extends Comparable<I>, E extends Element<I>, N extends N
      */
     @Nullable
     static <I extends Comparable<I>, E extends Element<I>, N extends Node<I, E, N>, V> V getProperty(
-            @Nullable Node<I, E, N> n, @Nullable Function<E, V> getter) {
-        if (Objects.isNull(n) || Objects.isNull(n.getElement()) || Objects.isNull(getter)) {
+            @Nullable Node<I, E, N> n, Function<E, V> getter) {
+        if (Objects.isNull(n) || Objects.isNull(n.getElement())) {
             return null;
         }
         return getter.apply(n.getElement());
     }
 
-    static <I extends Comparable<I>, E extends Element<I>, N extends Node<I, E, N>, V> void setProperty(
-            @Nullable Node<I, E, N> n, @Nullable BiConsumer<E, V> setter, @Nullable V value) {
-        if (Objects.isNull(n) || Objects.isNull(n.getElement()) || Objects.isNull(setter)) {
+    static <I extends Comparable<I>, E extends Element<I>, N extends Node<I, E, N>> void setProperty(
+            @Nullable Node<I, E, N> n, Consumer<E> setter) {
+        if (Objects.isNull(n) || Objects.isNull(n.getElement())) {
             return;
         }
-        setter.accept(n.getElement(), value);
+        setter.accept(n.getElement());
     }
 
     /**

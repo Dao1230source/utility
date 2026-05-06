@@ -1,6 +1,7 @@
 package org.source.utility.utils;
 
 import lombok.experimental.UtilityClass;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.source.utility.constant.Constants;
 import org.source.utility.enums.BaseExceptionEnum;
 import org.springframework.util.ReflectionUtils;
@@ -17,8 +18,8 @@ public class Lambdas {
 
     private static final Map<String, SerializedLambda> LAMBDA_MAP = new ConcurrentHashMap<>(32);
 
-    public static String getFieldName(Serializable serializable) {
-        return getFieldName(getMethodName(serializable));
+    public static @Nullable String getFieldName(Serializable serializable) {
+        return PropertyUtil.toFieldName(getMethodName(serializable));
     }
 
     public static String getMethodName(Serializable serializable) {
@@ -43,20 +44,4 @@ public class Lambdas {
             }
         });
     }
-
-    public static String getFieldName(String methodName) {
-        if (methodName.isEmpty()) {
-            return methodName;
-        } else if (methodName.startsWith(Constants.GET)) {
-            return Strings.removePrefixAndLowerFirst(methodName, Constants.GET);
-        } else if (methodName.startsWith(Constants.SET)) {
-            return Strings.removePrefixAndLowerFirst(methodName, Constants.SET);
-        } else if (methodName.startsWith(Constants.IS)) {
-            return Strings.removePrefixAndLowerFirst(methodName, Constants.IS);
-        } else {
-            return methodName;
-        }
-    }
-
-
 }

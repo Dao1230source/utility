@@ -71,7 +71,7 @@ public class Action<E, K, T> {
         }
         K key = this.keyGetter.apply(e);
         if (Objects.isNull(key)) {
-            log.debug("元素{}的key为null，跳过赋值", e);
+            log.debug("key为null，跳过赋值");
             return;
         }
         T t = ktMap.get(key);

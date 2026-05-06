@@ -56,7 +56,7 @@ public class Jsons {
 
     public static String str(Object obj) {
         try {
-            return MAPPER.writeValueAsString(obj);
+            return getInstance().writeValueAsString(obj);
         } catch (JsonProcessingException e) {
             throw BaseExceptionEnum.JSON_OBJECT_2_STRING_EXCEPTION.newException(e);
         }
@@ -64,7 +64,7 @@ public class Jsons {
 
     public static byte[] bytes(Object obj) {
         try {
-            return MAPPER.writeValueAsBytes(obj);
+            return getInstance().writeValueAsBytes(obj);
         } catch (JsonProcessingException e) {
             throw BaseExceptionEnum.JSON_OBJECT_2_STRING_EXCEPTION.newException(e);
         }
@@ -72,7 +72,7 @@ public class Jsons {
 
     public static <T> T obj(String jsonStr, JavaType javaType) {
         try {
-            return MAPPER.readValue(jsonStr, javaType);
+            return getInstance().readValue(jsonStr, javaType);
         } catch (JsonProcessingException e) {
             throw BaseExceptionEnum.JSON_STRING_2_OBJECT_EXCEPTION.newException(e);
         }
@@ -80,18 +80,18 @@ public class Jsons {
 
     public static <T> T obj(byte[] bytes, JavaType valueType) {
         try {
-            return MAPPER.readValue(bytes, valueType);
+            return getInstance().readValue(bytes, valueType);
         } catch (IOException e) {
             throw BaseExceptionEnum.JSON_STRING_2_OBJECT_EXCEPTION.newException(e);
         }
     }
 
     public static <T> T obj(String jsonStr, Class<T> tClass) {
-        return obj(jsonStr, MAPPER.constructType(tClass));
+        return obj(jsonStr, getInstance().constructType(tClass));
     }
 
     public static <T> T obj(String jsonStr, Type type) {
-        return obj(jsonStr, MAPPER.constructType(type));
+        return obj(jsonStr, getInstance().constructType(type));
     }
 
     public static <T> T obj(String jsonStr, TypeReference<T> typeReference) {
@@ -99,7 +99,7 @@ public class Jsons {
     }
 
     public static <T> List<T> list(String jsonStr) {
-        return obj(jsonStr, MAPPER.constructType(new TypeReference<List<T>>() {
+        return obj(jsonStr, getInstance().constructType(new TypeReference<List<T>>() {
         }));
     }
 
@@ -109,7 +109,7 @@ public class Jsons {
 
     @SuppressWarnings("unchecked")
     public static JavaType getJavaType(Class<?>... classes) {
-        TypeFactory typeFactory = MAPPER.getTypeFactory();
+        TypeFactory typeFactory = getInstance().getTypeFactory();
         JavaType javaType;
         if (classes.length == 0) {
             return typeFactory.constructArrayType(String.class);
@@ -132,6 +132,6 @@ public class Jsons {
     }
 
     public static JavaType getJavaType(Type type) {
-        return MAPPER.getTypeFactory().constructType(type);
+        return getInstance().getTypeFactory().constructType(type);
     }
 }

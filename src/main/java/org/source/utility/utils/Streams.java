@@ -3,6 +3,7 @@ package org.source.utility.utils;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.springframework.lang.Nullable;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -406,8 +407,8 @@ public class Streams {
         return Arrays.stream(es);
     }
 
-    public static <E> Stream<E> of(Collection<E> es) {
-        if (es.isEmpty()) {
+    public static <E> Stream<E> of(@Nullable Collection<E> es) {
+        if (CollectionUtils.isEmpty(es)) {
             return Stream.empty();
         }
         if (es.size() >= getStreamParallelThreshold()) {

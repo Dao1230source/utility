@@ -3,6 +3,7 @@ package org.source.utility.tree;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.exception.BaseException;
 import org.source.utility.tree.define.*;
@@ -10,7 +11,6 @@ import org.source.utility.utils.Jsons;
 import org.source.utility.utils.Streams;
 import org.source.utility.utils.UnionFind;
 import org.springframework.lang.Nullable;
-import org.springframework.util.CollectionUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,7 +39,7 @@ import java.util.function.*;
  * </pre>
  * </p>
  *
- * @param <I> ID 类型，必须实现 Comparable 接口
+ * @param <I> ID 类型，必须实现 Comparable 接口，推荐I使用String类型，各种特殊类型都能满足
  * @param <E> 元素类型，必须实现 Element 接口
  * @param <N> 节点类型，必须继承 AbstractNode
  * @author utility
@@ -103,19 +103,21 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
     /**
      * 节点添加后的处理器
      * 在节点添加到树之后调用
+     * {@literal <node, parentNode>}
      */
     private @Nullable BiConsumer<N, N> afterAddHandler;
-    /**
-     * ID 获取函数
-     * 从元素中提取 ID，默认调用 element.getId()
-     */
-    private Function<N, I> idGetter = N::getId;
 
     /**
-     * 父节点 ID 获取函数
-     * 从元素中提取父节点 ID，默认调用 element.getParentId()
+     * ID扩展，元素对象除了ID之外的唯一键
      */
-    private Function<N, I> parentIdGetter = N::getParentId;
+    private IdExtend<I, E, N> idExtend = IdExtend.defaultIdExtend();
+
+    /**
+     * 额外扩展的属性缓存，提升forEach等性能
+     * {@literal <元素字段值,Node>}
+     */
+    private Map<String, Map<I, N>> extendCachMap = new ConcurrentHashMap<>();
+    private List<IdExtend<I, E, N>> extendCacheIdExtends = List.of();
 
     /**
      * 构造函数
@@ -196,17 +198,20 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
             return n;
         }).toList();
         // 先将所有元素缓存，避免有可能父级数据在后，当前元素加入时找不到父级的情况
-        List<MergeNodeResult<I, E, N>> mergedResult = Streams.map(toAddNodes, n ->
-                AbstractNode.mergeNode(n, this.getIdGetter(), this.getIdMap(), this.getMergeHandler())
+        List<MergeNodeResult<I, E, N>> mergedResult = Streams.map(toAddNodes, n -> AbstractNode.mergeNode(
+                n,
+                this.getIdExtend().getIdGetter(),
+                i -> this.obtainNodeFromCache(i, this.getIdExtend()),
+                this.getMergeHandler())
         ).filter(Objects::nonNull).toList();
         // 添加节点
         List<N> mergedNodes = Streams.of(mergedResult).map(MergeNodeResult::getResultNode).toList();
         mergedNodes.forEach(node -> {
-            I parentId = this.getParentIdGetter().apply(node);
-            N parent = this.getParent(parentId);
+            N parent = this.getParent(node, this.getIdExtend());
             N addedChild = parent.addChild(node);
             addedChild.appendToParent(parent);
             this.idMap.put(addedChild.getId(), addedChild);
+            this.afterCached(node);
         });
         // 使用并查集检测循环引用
         List<N> addedNodes = Streams.of(mergedResult)
@@ -224,6 +229,13 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         this.doAfter(addedNodes);
         this.getSourceElements().addAll(es);
         return root;
+    }
+
+    public IdExtend<I, E, N> getIdExtend() {
+        if (Objects.isNull(this.idExtend)) {
+            this.idExtend = IdExtend.defaultIdExtend();
+        }
+        return this.idExtend;
     }
 
     private void detectCircularReferences(List<N> cachedNodes) {
@@ -279,27 +291,50 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         }
     }
 
+    protected void afterCached(N node) {
+        Streams.of(this.extendCacheIdExtends).filter(k -> !IdExtend.ID_NAME.equals(k.getName())).forEach(k -> {
+            Map<I, N> inMap = this.extendCachMap.get(k.getName());
+            if (Objects.isNull(inMap)) {
+                this.extendCachMap.put(k.getName(), new HashMap<>());
+            }
+            this.extendCachMap.get(k.getName()).put(k.getIdGetter().apply(node), node);
+        });
+    }
+
     /**
      * <p>
      * 根据父节点 ID 从树中查找对应的父节点。
      * 如果 parentId 为 null 或在树中找不到对应的节点，则返回根节点。
      * </p>
      *
-     * @param parentId 父节点 ID，可以为 null
+     * @param n 当前节点
      * @return 对应的父节点，如果找不到则返回根节点
      */
-    private N getParent(@Nullable I parentId) {
-        N parent;
-        if (Objects.isNull(parentId)) {
-            parent = root;
+    private N getParent(N n, IdExtend<I, E, N> idExtend) {
+        I id = idExtend.getParentIdGetter().apply(n);
+        N parent = this.obtainNodeFromCache(id, idExtend);
+        if (Objects.nonNull(parent)) {
+            return parent;
+        }
+        parent = root;
+        return parent;
+    }
+
+    public @Nullable N obtainNodeFromCache(@Nullable I id, IdExtend<I, E, N> idExtend) {
+        N old = null;
+        if (Objects.isNull(id)) {
+            return old;
+        }
+        if (idExtend.isDefault()) {
+            old = this.idMap.get(id);
         } else {
-            parent = this.idMap.get(parentId);
-            if (Objects.isNull(parent)) {
-                log.warn("Parent node {} not found, using root node as parent", parentId);
-                parent = root;
+            Map<I, N> inMap = this.extendCachMap.get(idExtend.getName());
+            if (Objects.nonNull(inMap)) {
+                old = inMap.get(id);
             }
         }
-        return parent;
+        log.info("node:{} not found", id);
+        return old;
     }
 
     /**
@@ -335,6 +370,16 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         readLock.lock();
         try {
             return Streams.of(this.idMap.values()).filter(predicate).findFirst();
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+
+    public Optional<N> getByKey(String fieldName, I key) {
+        readLock.lock();
+        try {
+            return Optional.ofNullable(this.extendCachMap.get(fieldName)).map(k -> k.get(key));
         } finally {
             readLock.unlock();
         }

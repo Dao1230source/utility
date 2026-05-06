@@ -1,9 +1,6 @@
 package org.source.utility.tree.define;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonManagedReference;
+import com.fasterxml.jackson.annotation.*;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.source.utility.constant.Constants;
@@ -16,6 +13,7 @@ import org.springframework.util.CollectionUtils;
 import java.util.*;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * 抽象节点基类
@@ -46,7 +44,7 @@ import java.util.function.Function;
 public abstract class AbstractNode<I extends Comparable<I>, E extends Element<I>, N extends AbstractNode<I, E, N>> implements Node<I, E, N> {
     /**
      * 节点包含的业务元素
-     * 为 null 表示该节点是虚拟节点（如根节点）
+     * 为 null 表示该节点是刚创建的空节点
      */
     private @Nullable E element;
 
@@ -129,7 +127,7 @@ public abstract class AbstractNode<I extends Comparable<I>, E extends Element<I>
     }
 
     protected N mergeNode(N child, Map<I, N> childrenMap) {
-        MergeNodeResult<I, E, N> result = mergeNode(child, Node::getId, childrenMap, this.getMergeHandler());
+        MergeNodeResult<I, E, N> result = mergeNode(child, Node::getId, childrenMap::get, this.getMergeHandler());
         N resultNode = result.getResultNode();
         BaseExceptionEnum.NOT_NULL.nonNull(resultNode, "merged result node must not null");
         BaseExceptionEnum.NOT_NULL.nonNull(resultNode.getId(), "merged result node id must not null");
@@ -139,25 +137,25 @@ public abstract class AbstractNode<I extends Comparable<I>, E extends Element<I>
     /**
      * 合并节点
      *
-     * @param n            新节点
-     * @param idGetter     节点 ID 获取器
-     * @param idMap        节点 ID 映射表
-     * @param mergeHandler 合并处理器
-     * @param <I>          ID 类型
-     * @param <E>          元素类型
-     * @param <N>          节点类型
+     * @param n             新节点
+     * @param idGetter      节点 ID 获取器
+     * @param oldNodeGetter 节点 ID 映射表
+     * @param mergeHandler  合并处理器
+     * @param <I>           ID 类型
+     * @param <E>           元素类型
+     * @param <N>           节点类型
      * @return 合并结果 非null
      */
     public static <I extends Comparable<I>, E extends Element<I>, N extends AbstractNode<I, E, N>>
     MergeNodeResult<I, E, N> mergeNode(
             N n,
             Function<N, I> idGetter,
-            Map<I, N> idMap,
+            Function<I, N> oldNodeGetter,
             @Nullable BinaryOperator<N> mergeHandler) {
         I id = idGetter.apply(n);
         BaseExceptionEnum.NOT_NULL.nonNull(id, "new node id must not null");
         N result = n;
-        N old = idMap.get(id);
+        N old = oldNodeGetter.apply(id);
         if (Objects.isNull(old)) {
             return new MergeNodeResult<>(n, null, result, MergeResultTypeEnum.ADD_NEW);
         }
@@ -228,6 +226,16 @@ public abstract class AbstractNode<I extends Comparable<I>, E extends Element<I>
         if (Objects.nonNull(this.childrenMap)) {
             this.childrenMap.clear();
         }
+    }
+
+    @JsonIgnore
+    public <X extends Throwable> E getElementOrElseThrow(Supplier<? extends X> exceptionSupplier) throws X {
+        return Optional.ofNullable(this.element).orElseThrow(exceptionSupplier);
+    }
+
+    @JsonIgnore
+    public E getElementOrElseThrow() {
+        return getElementOrElseThrow(() -> BaseExceptionEnum.NOT_NULL.newException("node's element must not be null"));
     }
 
     /**

@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
@@ -118,8 +119,14 @@ public class Assign<E> {
         this(superAssign.mainData, superAssign.depth + ROOT_DEPTH, superAssign);
     }
 
-    public <K, T> Acquire<E, K, T> addAcquire(Function<Collection<K>, Map<K, T>> fetcher) {
+    public <K, T> Acquire<E, K, T> addAcquire(Function<Set<K>, Map<K, T>> fetcher) {
         Acquire<E, K, T> acquire = new Acquire<>(this, fetcher, null);
+        this.acquires.add(acquire);
+        return acquire;
+    }
+
+    public <K, T> Acquire<E, K, T> addAcquireSingle(Function<K, T> fetcher) {
+        Acquire<E, K, T> acquire = new Acquire<>(this, null, fetcher);
         this.acquires.add(acquire);
         return acquire;
     }
@@ -132,35 +139,37 @@ public class Assign<E> {
         return Streams.toMap(ts, keyGetter);
     }
 
-    public <K, T> Acquire<E, K, T> addAcquire(Function<Collection<K>, Collection<T>> fetcher,
+    public <K, T> Acquire<E, K, T> addAcquire(Function<Set<K>, Collection<T>> fetcher,
                                               Function<T, K> keyGetter) {
-        Function<Collection<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.apply(ks), keyGetter);
+        Function<Set<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.apply(ks), keyGetter);
         Acquire<E, K, T> acquire = new Acquire<>(this, mapFetcher, null);
         this.acquires.add(acquire);
         return acquire;
     }
 
-
-    public <K, T> Acquire<E, K, T> addAcquire4Single(Function<K, T> fetcher) {
-        Acquire<E, K, T> acquire = new Acquire<>(this, null, fetcher);
+    public <K, T> Acquire<E, K, List<T>> addAcquireOutGroup(Function<Collection<K>, Collection<T>> fetcher,
+                                                            Function<T, K> keyGetter) {
+        Function<Set<K>, Map<K, List<T>>> mapFetcher = ks ->
+                Streams.of(fetcher.apply(ks)).collect(Collectors.groupingBy(keyGetter));
+        Acquire<E, K, List<T>> acquire = new Acquire<>(this, mapFetcher, null);
         this.acquires.add(acquire);
         return acquire;
     }
 
-    public <K, T> Acquire<E, K, T> addAcquireByList(Function<List<K>, Collection<T>> fetcher,
+    public <K, T> Acquire<E, K, T> addAcquireInList(Function<List<K>, Collection<T>> fetcher,
                                                     Function<T, K> keyGetter) {
         return addAcquire(ks -> fetcher.apply(new ArrayList<>(ks)), keyGetter);
     }
 
-    public <K, T> Acquire<E, K, T> addAcquireByMainData(Function<Collection<E>, Collection<T>> fetcher,
+    public <K, T> Acquire<E, K, T> addAcquireInMainData(Function<Collection<E>, Collection<T>> fetcher,
                                                         Function<T, K> keyGetter) {
-        Function<Collection<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.apply(this.mainData), keyGetter);
+        Function<Set<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.apply(this.mainData), keyGetter);
         return addAcquire(mapFetcher);
     }
 
-    public <K, T> Acquire<E, K, T> addAcquireByExtra(Supplier<Collection<T>> fetcher,
+    public <K, T> Acquire<E, K, T> addAcquireInExtra(Supplier<Collection<T>> fetcher,
                                                      Function<T, K> keyGetter) {
-        Function<Collection<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.get(), keyGetter);
+        Function<Set<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.get(), keyGetter);
         return addAcquire(mapFetcher);
     }
 

@@ -1,7 +1,6 @@
 package org.source.utility.tree;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import org.source.utility.tree.define.AbstractNode;
 import org.source.utility.tree.define.Element;
 import org.source.utility.tree.define.EnhanceElement;
@@ -115,24 +114,6 @@ public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N
     @Override
     public List<N> getChildren() {
         return List.copyOf(this.children);
-    }
-
-    /**
-     * 获取多父节点信息用于 JSON 序列化
-     * <p>
-     * 当节点有多个父节点时，以列表形式返回（排除单个父节点的情况）。
-     * 用于 JSON 序列化，标记为只读属性。
-     * </p>
-     *
-     * @return 父节点对应的元素列表，如果父节点数 &lt;= 1 则返回空列表
-     */
-    @JsonProperty(value = "parents", access = JsonProperty.Access.READ_ONLY)
-    public List<I> parentsToJson() {
-        // 只有一个父级时无需展示
-        if (CollectionUtils.isEmpty(this.parents) || this.parents.size() == 1) {
-            return List.of();
-        }
-        return Streams.of(parents).map(N::getId).filter(Objects::nonNull).toList();
     }
 
     /**
