@@ -17,6 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 树容器类
@@ -63,6 +65,10 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      */
     private final Map<I, N> idMap = new ConcurrentHashMap<>(32);
 
+    /**
+     * 读写锁，用于保护树的并发操作
+     * 所有写操作（add、remove、clear）使用写锁，所有读操作（find、get、getById）使用读锁
+     */
     private ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
@@ -117,6 +123,12 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      * {@literal <元素字段值,Node>}
      */
     private Map<String, Map<I, N>> extendCachMap = new ConcurrentHashMap<>();
+    /**
+     * ID扩展配置列表，用于定义额外的缓存索引
+     * 每个IdExtend定义了一个属性名称和对应的ID获取函数
+     * 通过{@link #setExtendCacheIdExtends(List)}方法设置
+     * 设置后会自动初始化{@link #extendCachMap}中对应的缓存Map
+     */
     private List<IdExtend<I, E, N>> extendCacheIdExtends = List.of();
 
     /**
@@ -189,6 +201,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         if (CollectionUtils.isEmpty(es)) {
             return root;
         }
+        // 转换元素为节点
         List<N> toAddNodes = Streams.map(es, e -> {
             N n = this.getRoot().emptyNode();
             n.setElement(e);
@@ -197,26 +210,34 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
             }
             return n;
         }).toList();
-        // 先将所有元素缓存，避免有可能父级数据在后，当前元素加入时找不到父级的情况
-        List<MergeNodeResult<I, E, N>> mergedResult = Streams.map(toAddNodes, n -> AbstractNode.mergeNode(
-                n,
-                this.getIdExtend().getIdGetter(),
-                i -> this.obtainNodeFromCache(i, this.getIdExtend()),
-                this.getMergeHandler())
-        ).filter(Objects::nonNull).toList();
+        List<N> addedNodes = new ArrayList<>(toAddNodes.size());
+        // 与旧节点合并
+        List<N> mergedNodes = Streams.map(toAddNodes, n -> {
+            MergeNodeResult<I, E, N> mergedResult = AbstractNode.mergeNode(
+                    n,
+                    this.getIdExtend().getIdGetter(),
+                    i -> this.obtainNodeFromCache(i, this.getIdExtend()),
+                    this.getMergeHandler());
+            N resultNode = mergedResult.getResultNode();
+            if (MergeResultTypeEnum.ADD_NEW.equals(mergedResult.getResultType())) {
+                addedNodes.add(resultNode);
+            }
+            // 先将所有元素缓存，避免有可能父级数据在后，当前元素加入时找不到父级的情况
+            this.cacheNode(resultNode);
+            return resultNode;
+        }).filter(Objects::nonNull).toList();
         // 添加节点
-        List<N> mergedNodes = Streams.of(mergedResult).map(MergeNodeResult::getResultNode).toList();
         mergedNodes.forEach(node -> {
             N parent = this.getParent(node, this.getIdExtend());
             N addedChild = parent.addChild(node);
+            this.checkIdExtendsUnmodified(node, addedChild);
             addedChild.appendToParent(parent);
-            this.idMap.put(addedChild.getId(), addedChild);
-            this.afterCached(node);
+            // 如果节点的引用变了，重新缓存
+            if (node != addedChild) {
+                this.cacheNode(addedChild);
+            }
         });
         // 使用并查集检测循环引用
-        List<N> addedNodes = Streams.of(mergedResult)
-                .filter(k -> MergeResultTypeEnum.ADD_NEW.equals(k.getResultType()))
-                .map(MergeNodeResult::getResultNode).toList();
         try {
             this.detectCircularReferences(addedNodes);
         } catch (BaseException e) {
@@ -231,6 +252,14 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         return root;
     }
 
+    /**
+     * 获取ID扩展配置
+     * <p>
+     * 如果idExtend为null，则返回默认的ID扩展配置（使用节点ID作为唯一键）
+     * </p>
+     *
+     * @return ID扩展配置，不会返回null
+     */
     public IdExtend<I, E, N> getIdExtend() {
         if (Objects.isNull(this.idExtend)) {
             this.idExtend = IdExtend.defaultIdExtend();
@@ -238,6 +267,36 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         return this.idExtend;
     }
 
+    /**
+     * 设置扩展缓存配置列表
+     * <p>
+     * 配置额外的属性缓存索引，用于通过非ID属性快速查找节点
+     * 设置后会自动初始化{@link #extendCachMap}中对应的缓存Map
+     * </p>
+     * <p>
+     * 注意：应该在调用{@link #add(Collection)}之前设置，否则缓存可能不完整
+     * </p>
+     *
+     * @param extendsList 扩展配置列表，每个IdExtend定义一个缓存索引
+     */
+    public void setExtendCacheIdExtends(List<IdExtend<I, E, N>> extendsList) {
+        this.extendCacheIdExtends = List.copyOf(extendsList);
+        // 初始化对应的缓存 Map
+        for (IdExtend<I, E, N> ext : extendsList) {
+            this.extendCachMap.putIfAbsent(ext.getName(), new ConcurrentHashMap<>());
+        }
+    }
+
+    /**
+     * 检测循环引用
+     * <p>
+     * 使用并查集（Union-Find）算法检测新添加的节点是否会形成循环引用
+     * 对于每条边（节点 -> 父节点），检查它们是否已在同一集合中
+     * </p>
+     *
+     * @param cachedNodes 新添加的节点列表
+     * @throws BaseException 如果检测到循环引用
+     */
     private void detectCircularReferences(List<N> cachedNodes) {
         I rootId = this.root.getId();
         if (Objects.nonNull(rootId)) {
@@ -254,6 +313,17 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         }
     }
 
+    /**
+     * 检测单个节点与父节点之间是否存在循环引用
+     * <p>
+     * 如果节点和父节点已在同一集合中，说明存在循环，抛出异常
+     * 否则将它们加入同一集合
+     * </p>
+     *
+     * @param node   当前节点
+     * @param parent 父节点
+     * @throws BaseException 如果检测到循环引用
+     */
     private void detectCircularReferences(N node, N parent) {
         I parentNodeId = parent.getId();
         I id = node.getId();
@@ -291,23 +361,88 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         }
     }
 
-    protected void afterCached(N node) {
-        Streams.of(this.extendCacheIdExtends).filter(k -> !IdExtend.ID_NAME.equals(k.getName())).forEach(k -> {
-            Map<I, N> inMap = this.extendCachMap.get(k.getName());
-            if (Objects.isNull(inMap)) {
-                this.extendCachMap.put(k.getName(), new HashMap<>());
-            }
-            this.extendCachMap.get(k.getName()).put(k.getIdGetter().apply(node), node);
+    /**
+     * 获取所有ID扩展配置
+     * <p>
+     * 合并{@link #idExtend}和{@link #extendCacheIdExtends}，返回完整的ID扩展列表
+     * 使用{@link #getIdExtend()}确保idExtend不为null
+     * </p>
+     *
+     * @return 所有ID扩展配置列表，不会包含null元素
+     */
+    private List<IdExtend<I, E, N>> obtainAllIdExtends() {
+        return Stream.concat(Streams.of(this.getIdExtend()), Streams.of(this.extendCacheIdExtends)).toList();
+    }
+
+    /**
+     * 缓存节点到idMap和扩展缓存中
+     * <p>
+     * 将节点添加到主ID缓存{@link #idMap}中
+     * 同时根据{@link #extendCacheIdExtends}配置，将节点添加到对应的扩展缓存中
+     * </p>
+     *
+     * @param node 要缓存的节点
+     */
+    protected void cacheNode(N node) {
+        this.idMap.put(node.getId(), node);
+        Streams.of(this.obtainAllIdExtends())
+                .filter(k -> !IdExtend.ID_NAME.equals(k.getName()))
+                .forEach(k -> this.extendCachMap.computeIfAbsent(k.getName(), name -> new ConcurrentHashMap<>())
+                        .put(k.getIdGetter().apply(node), node));
+    }
+
+    /**
+     * 从扩展缓存中移除节点
+     * <p>
+     * 根据{@link #extendCacheIdExtends}配置，从{@link #extendCachMap}中移除节点
+     * 只移除节点本身，不包括其子节点
+     * </p>
+     *
+     * @param node 要移除的节点
+     */
+    private void removeCache(N node) {
+        this.idMap.remove(node.getId());
+        Streams.of(this.obtainAllIdExtends()).filter(k -> !IdExtend.ID_NAME.equals(k.getName()))
+                .forEach(k -> {
+                    Map<I, N> inMap = this.extendCachMap.get(k.getName());
+                    if (Objects.nonNull(inMap)) {
+                        inMap.remove(k.getIdGetter().apply(node));
+                    }
+                });
+    }
+
+
+    /**
+     * 检查合并节点的ID扩展属性未被修改
+     * <p>
+     * 在节点合并时，验证新节点和旧节点的ID及扩展ID属性是否相同
+     * 如果不同则抛出异常，确保合并不会破坏缓存索引的一致性
+     * </p>
+     *
+     * @param o 合并后的节点（旧节点）
+     * @param n 新节点
+     * @throws BaseException 如果ID或扩展ID属性不一致
+     */
+    protected void checkIdExtendsUnmodified(N o, N n) {
+        BaseExceptionEnum.TREE_MERGED_NODE_ID_MUST_EQUAL.isTrue(Objects.equals(n.getId(), o.getId()),
+                "new id:{}, old id:{}", n.getId(), o.getId());
+        Streams.of(this.obtainAllIdExtends()).filter(k -> !IdExtend.ID_NAME.equals(k.getName())).forEach(k -> {
+            I nValue = k.getIdGetter().apply(n);
+            I oValue = k.getIdGetter().apply(o);
+            BaseExceptionEnum.TREE_MERGED_NODE_ID_MUST_EQUAL.isTrue(Objects.equals(nValue, oValue),
+                    "new key:{}, old key:{}", nValue, oValue);
         });
     }
 
     /**
+     * 获取节点的父节点
      * <p>
-     * 根据父节点 ID 从树中查找对应的父节点。
-     * 如果 parentId 为 null 或在树中找不到对应的节点，则返回根节点。
+     * 根据节点ID扩展配置，从缓存中查找对应的父节点
+     * 如果找不到父节点或父节点ID为null，则返回根节点
      * </p>
      *
-     * @param n 当前节点
+     * @param n        当前节点
+     * @param idExtend ID扩展配置，用于获取父节点ID
      * @return 对应的父节点，如果找不到则返回根节点
      */
     private N getParent(N n, IdExtend<I, E, N> idExtend) {
@@ -320,6 +455,18 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         return parent;
     }
 
+    /**
+     * 从缓存中获取节点
+     * <p>
+     * 根据ID和ID扩展配置，从对应的缓存中查找节点
+     * 如果idExtend是默认配置（使用ID），则从{@link #idMap}中查找
+     * 否则从{@link #extendCachMap}中对应的扩展缓存中查找
+     * </p>
+     *
+     * @param id       节点ID或扩展属性值
+     * @param idExtend ID扩展配置
+     * @return 找到的节点，如果未找到则返回null
+     */
     public @Nullable N obtainNodeFromCache(@Nullable I id, IdExtend<I, E, N> idExtend) {
         N old = null;
         if (Objects.isNull(id)) {
@@ -333,7 +480,9 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
                 old = inMap.get(id);
             }
         }
-        log.info("node:{} not found", id);
+        if (Objects.isNull(old)) {
+            log.info("node:{} not found", id);
+        }
         return old;
     }
 
@@ -376,6 +525,18 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
     }
 
 
+    /**
+     * 根据扩展属性名称和键值获取节点
+     * <p>
+     * 从{@link #extendCachMap}中根据属性名称查找对应的缓存Map，
+     * 再根据键值获取节点
+     * 此方法是线程安全的，通过读锁保护
+     * </p>
+     *
+     * @param fieldName 扩展属性名称，对应{@link IdExtend#getName()}
+     * @param key       属性值
+     * @return Optional包装的节点，如果未找到则为空Optional
+     */
     public Optional<N> getByKey(String fieldName, I key) {
         readLock.lock();
         try {
@@ -431,8 +592,8 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      * 内部方法，执行以下步骤：
      * <ol>
      *   <li>从父节点移除</li>
-     *   <li>从 idMap 和 sourceElements 中删除</li>
-     *   <li>递归删除所有子节点</li>
+     *   <li>从缓存中删除节点本身及所有子节点</li>
+     *   <li>从sourceElements中删除</li>
      *   <li>清理节点引用</li>
      *   <li>重建并查集以维护一致性</li>
      * </ol>
@@ -446,19 +607,12 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         }
         // 从父节点移除
         node.removeFromParent();
-        Set<I> idMapToRemoveIds = HashSet.newHashSet(16);
-        Set<I> sourceElementToRemoveIds = HashSet.newHashSet(16);
-        // 从缓存中删除该节点
-        idMapToRemoveIds.add(node.getId());
-        sourceElementToRemoveIds.add(node.getId());
-        // 递归删除所有子节点
-        List<N> allDescendants = Node.recursiveChildren(node, false);
-        for (N descendant : allDescendants) {
-            idMapToRemoveIds.add(descendant.getId());
-            sourceElementToRemoveIds.add(descendant.getId());
-        }
-        // 从缓存中删除该节点
-        idMapToRemoveIds.forEach(this.idMap::remove);
+        // 获取所有子节点
+        List<N> allDescendants = Node.recursiveChildren(node, true);
+        // 从缓存中删除节点本身及所有子节点
+        allDescendants.forEach(this::removeCache);
+        // 从源元素中删除
+        Set<I> sourceElementToRemoveIds = Streams.map(allDescendants, Node::getId).collect(Collectors.toSet());
         this.sourceElements.removeIf(e -> sourceElementToRemoveIds.contains(e.getId()));
         // 清理节点引用
         node.clear();
@@ -466,6 +620,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         // 删除节点后重建并查集，维持连通关系的一致性
         this.rebuildUnionFind();
     }
+
 
     /**
      * 重建并查集
@@ -513,6 +668,20 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         }
     }
 
+    /**
+     * 批量更新节点
+     * <p>
+     * 对多个节点执行更新操作，返回成功更新的节点数量
+     * 此方法是线程安全的，通过写锁保护
+     * </p>
+     * <p>
+     * 注意：updater不能修改节点的ID值，否则会抛出异常
+     * </p>
+     *
+     * @param ids     要更新的节点ID集合
+     * @param updater 更新函数，接收节点并执行更新操作
+     * @return 成功更新的节点数量
+     */
     public long update(Collection<I> ids, Consumer<N> updater) {
         this.writeLock.lock();
         try {
@@ -624,6 +793,8 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
             this.root.clear();
             // 清空并查集（下次 add() 时会重新添加 root）
             this.unionFind.clear();
+            this.extendCachMap.clear();
+            this.extendCacheIdExtends = List.of();
         } finally {
             this.writeLock.unlock();
         }

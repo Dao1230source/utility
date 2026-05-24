@@ -74,6 +74,7 @@ public enum BaseExceptionEnum implements EnumProcessor<BaseException> {
      */
     TREE_MERGE_EXCEPTION("merge_exception"),
     TREE_CAN_NOT_UPDATE_ID("can not update id"),
+    TREE_MERGED_NODE_ID_MUST_EQUAL("merged node id must equal"),
 
     /**
      * exception
