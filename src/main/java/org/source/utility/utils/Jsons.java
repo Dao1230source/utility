@@ -39,8 +39,8 @@ public class Jsons {
     }
 
     public static void config(ObjectMapper mapper) {
-        // 非空
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
+        // 全部展示
+        mapper.setSerializationInclusion(JsonInclude.Include.ALWAYS);
         // 空bean转换失败：false
         mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
         // 属性值不存在失败：false

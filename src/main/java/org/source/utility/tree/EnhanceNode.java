@@ -37,7 +37,7 @@ import java.util.*;
  * @author utility
  * @since 1.0
  */
-@JsonIgnoreProperties(value = {"comparator"})
+@JsonIgnoreProperties(value = {"comparator", "mergeHandler"})
 public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N extends EnhanceNode<I, E, N>>
         extends AbstractNode<I, E, N> implements Comparable<EnhanceNode<I, E, N>> {
     /**
