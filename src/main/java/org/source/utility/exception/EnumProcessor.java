@@ -1,10 +1,20 @@
 package org.source.utility.exception;
 
+import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.type.TypeFactory;
+import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.utils.Asserts;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 public interface EnumProcessor<E extends BaseException> {
+
+    Map<Class<? extends EnumProcessor<?>>, ExceptionConstructor<?>> CONSTRUCTOR_MAP = HashMap.newHashMap(16);
+
     /**
      * 枚举的 name() 方法
      *
@@ -29,19 +39,19 @@ public interface EnumProcessor<E extends BaseException> {
     String getMessage();
 
     default E newException() {
-        return BaseException.newException(this);
+        return newException(this);
     }
 
     default E newException(String extraMessage, Object... objects) {
-        return BaseException.newException(this, extraMessage, objects);
+        return newException(this, extraMessage, objects);
     }
 
     default E newException(Throwable e) {
-        return BaseException.newException(this, e);
+        return newException(this, e);
     }
 
     default E newException(Throwable e, String extraMessage, Object... objects) {
-        return BaseException.newException(this, e, extraMessage, objects);
+        return newException(this, e, extraMessage, objects);
     }
 
     default void throwException() {
@@ -201,4 +211,101 @@ public interface EnumProcessor<E extends BaseException> {
         Asserts.isEmpty(object, () -> this.newException(extraMessage, objects));
     }
 
+
+    /**
+     * 获取异常的构造器
+     *
+     * @return 构造器
+     */
+    @SuppressWarnings("unchecked")
+    private static <E1 extends BaseException, E2 extends EnumProcessor<E1>> ExceptionConstructor<E1>
+    exceptionConstructor(Class<E2> exceptionClass) {
+        return (ExceptionConstructor<E1>) CONSTRUCTOR_MAP.computeIfAbsent(exceptionClass, k -> {
+            TypeFactory typeFactory = TypeFactory.defaultInstance();
+            JavaType type = typeFactory.constructType(exceptionClass);
+            JavaType superType = type.findSuperType(EnumProcessor.class);
+            JavaType javaType = superType.containedType(0);
+            Class<? extends BaseException> cls = (Class<? extends BaseException>) javaType.getRawClass();
+            BaseExceptionEnum.ENUM_PROCESSOR_GENERIC_MUST_INSTANCEOF_BASE_EXCEPTION.nonNull(cls);
+            try {
+                return ExceptionConstructor.<E1>builder()
+                        .base((Constructor<E1>) cls.getConstructor(EnumProcessor.class))
+                        .baseAndExtra((Constructor<E1>) cls.getConstructor(EnumProcessor.class, String.class, Object[].class))
+                        .baseAndEx((Constructor<E1>) cls.getConstructor(EnumProcessor.class, Throwable.class))
+                        .baseAndExAndExtra((Constructor<E1>) cls.getConstructor(EnumProcessor.class, Throwable.class, String.class, Object[].class))
+                        .build();
+            } catch (NoSuchMethodException e) {
+                throw new BaseException(BaseExceptionEnum.REFLECT_EXCEPTION, e);
+            }
+        });
+    }
+
+    /**
+     * except
+     *
+     * @return BaseException的实现类，具体的业务异常类型
+     */
+    @SuppressWarnings("unchecked")
+    static <E1 extends BaseException, E2 extends EnumProcessor<E1>> E1 newException(E2 e2) {
+        try {
+            ExceptionConstructor<E1> exceptionConstructor = exceptionConstructor(e2.getClass());
+            return exceptionConstructor.getBase().newInstance(e2);
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException ex) {
+            throw new BaseException(BaseExceptionEnum.REFLECT_EXCEPTION, ex);
+        }
+    }
+
+    /**
+     * new BaseException
+     *
+     * @param extraMessage 额外消息
+     * @param objects      消息中占位符的具体值
+     * @return BaseException
+     */
+    @SuppressWarnings("unchecked")
+    static <E1 extends BaseException, E2 extends EnumProcessor<E1>> E1 newException(
+            E2 e2, String extraMessage, Object... objects) {
+        try {
+            ExceptionConstructor<E1> exceptionConstructor = exceptionConstructor(e2.getClass());
+            return exceptionConstructor.getBaseAndExtra().newInstance(e2, extraMessage, objects);
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+            throw new BaseException(BaseExceptionEnum.REFLECT_EXCEPTION, e);
+        }
+    }
+
+    /**
+     * new BaseException
+     *
+     * @param e e
+     * @return BaseException
+     */
+    @SuppressWarnings("unchecked")
+    static <E1 extends BaseException, E2 extends EnumProcessor<E1>> E1 newException(
+            E2 e2, Throwable e) {
+        try {
+            ExceptionConstructor<E1> exceptionConstructor = exceptionConstructor(e2.getClass());
+            return exceptionConstructor.getBaseAndEx().newInstance(e2, e);
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException ex) {
+            throw new BaseException(BaseExceptionEnum.REFLECT_EXCEPTION, ex);
+        }
+    }
+
+    /**
+     * new BaseException
+     *
+     * @param e            e
+     * @param extraMessage 额外消息
+     * @param objects      消息中占位符的具体值
+     * @return BaseException
+     */
+    @SuppressWarnings("unchecked")
+    static <E1 extends BaseException, E2 extends EnumProcessor<E1>> E1 newException(
+            E2 e2, Throwable e, String extraMessage, Object... objects) {
+        try {
+            ExceptionConstructor<E1> exceptionConstructor = exceptionConstructor(e2.getClass());
+            return exceptionConstructor.getBaseAndExAndExtra().newInstance(e2, e, extraMessage, objects);
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException ex) {
+            throw new BaseException(BaseExceptionEnum.REFLECT_EXCEPTION, ex);
+        }
+    }
 }

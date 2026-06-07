@@ -7,27 +7,27 @@ import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.concurrent.BasicThreadFactory;
+import org.jspecify.annotations.Nullable;
 import org.source.utility.constant.Constants;
 import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.utils.Jsons;
 import org.source.utility.utils.Streams;
+import org.source.utility.utils.Timing;
 import org.source.utility.utils.Timings;
-import org.springframework.lang.Nullable;
-import org.springframework.scheduling.concurrent.CustomizableThreadFactory;
-import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.*;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
-@JsonIncludeProperties({"name", "depth", "interruptStrategy", "executor", "timeout", "invokeTiming", "acquires", "branches"})
-@JsonPropertyOrder({"name", "depth", "interruptStrategy", "executor", "timeout", "invokeTiming", "acquires", "branches"})
+@JsonIncludeProperties({"name", "depth", "interruptStrategy", "executor", "timeout", "invokeTiming", "acquires", "branches", "dependOnAssigns", "dependByAssign"})
+@JsonPropertyOrder({"name", "depth", "interruptStrategy", "executor", "timeout", "invokeTiming", "acquires", "branches", "dependOnAssigns", "dependByAssign"})
 public class Assign<E> {
     private static final int ROOT_DEPTH = 1;
     private static final int PROCESSORS = Runtime.getRuntime().availableProcessors();
@@ -40,7 +40,7 @@ public class Assign<E> {
 
     private static final ExecutorService DEFAULT_EXECUTOR = Objects.requireNonNull(TtlExecutors.getTtlExecutorService(
             new ThreadPoolExecutor(1, PROCESSORS * 10, 60, TimeUnit.SECONDS, new SynchronousQueue<>(),
-                    new CustomizableThreadFactory("assign-pool-"), new ThreadPoolExecutor.CallerRunsPolicy())
+                    new BasicThreadFactory.Builder().namingPattern("assign-pool-%d").build(), new ThreadPoolExecutor.CallerRunsPolicy())
     ));
     /**
      * 集合不可修改，只可以更新集合对象的值
@@ -64,6 +64,7 @@ public class Assign<E> {
      */
     private final List<Consumer<Collection<E>>> subs;
 
+    @Nullable
     @JsonBackReference
     private Assign<E> superAssign;
 
@@ -75,11 +76,11 @@ public class Assign<E> {
     @Getter
     private @Nullable Executor executor;
     @Getter
-    private @Nullable Long timeout;
+    private long timeout;
     /**
      * 资源计数器
      */
-    private Semaphore semaphore;
+    private @Nullable Semaphore semaphore;
     /**
      * 执行状态
      */
@@ -97,7 +98,15 @@ public class Assign<E> {
      * invoke方法时间统计
      */
     @Getter
-    private Timings.Timing invokeTiming;
+    private @Nullable Timing invokeTiming;
+
+    /**
+     * 依赖的Assigns
+     */
+    @JsonManagedReference
+    private final List<Assign<E>> dependOnAssigns;
+    @JsonBackReference
+    private @Nullable Assign<E> dependByAssign;
 
     public Assign(Collection<E> mainData, int depth, @Nullable Assign<E> superAssign) {
         this.mainData = Collections.unmodifiableCollection(mainData);
@@ -115,6 +124,7 @@ public class Assign<E> {
         }
         this.subs = new ArrayList<>();
         this.acquireCounter = new AtomicInteger(0);
+        this.dependOnAssigns = new ArrayList<>();
     }
 
     public Assign(Collection<E> mainData) {
@@ -125,13 +135,13 @@ public class Assign<E> {
         this(superAssign.mainData, superAssign.depth + ROOT_DEPTH, superAssign);
     }
 
-    public <K, T> Acquire<E, K, T> addAcquire(Function<Set<K>, Map<K, T>> fetcher) {
+    public <K, T> Acquire<E, K, T> addAcquire(Function<Collection<K>, Map<K, T>> fetcher) {
         Acquire<E, K, T> acquire = new Acquire<>(this, fetcher, null);
         this.acquires.add(acquire);
         return acquire;
     }
 
-    public <K, T> Acquire<E, K, T> addAcquireSingle(Function<K, T> fetcher) {
+    public <K, T> Acquire<E, K, T> addAcquireSingle(Function<K, @Nullable T> fetcher) {
         Acquire<E, K, T> acquire = new Acquire<>(this, null, fetcher);
         this.acquires.add(acquire);
         return acquire;
@@ -145,37 +155,36 @@ public class Assign<E> {
         return Streams.toMap(ts, keyGetter);
     }
 
-    public <K, T> Acquire<E, K, T> addAcquire(Function<Set<K>, Collection<T>> fetcher,
-                                              Function<T, K> keyGetter) {
-        Function<Set<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.apply(ks), keyGetter);
+    public <K, T> Acquire<E, K, T> addAcquire(Function<Collection<K>, Collection<T>> fetcher,
+                                              Function<T, @Nullable K> keyGetter) {
+        Function<Collection<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.apply(ks), keyGetter);
         Acquire<E, K, T> acquire = new Acquire<>(this, mapFetcher, null);
         this.acquires.add(acquire);
         return acquire;
     }
 
     public <K, T> Acquire<E, K, List<T>> addAcquireOutGroup(Function<Collection<K>, Collection<T>> fetcher,
-                                                            Function<T, K> keyGetter) {
-        Function<Set<K>, Map<K, List<T>>> mapFetcher = ks ->
-                Streams.of(fetcher.apply(ks)).collect(Collectors.groupingBy(keyGetter));
+                                                            Function<T, @Nullable K> keyGetter) {
+        Function<Collection<K>, Map<K, List<T>>> mapFetcher = ks -> Streams.groupBy(fetcher.apply(ks), keyGetter);
         Acquire<E, K, List<T>> acquire = new Acquire<>(this, mapFetcher, null);
         this.acquires.add(acquire);
         return acquire;
     }
 
     public <K, T> Acquire<E, K, T> addAcquireInList(Function<List<K>, Collection<T>> fetcher,
-                                                    Function<T, K> keyGetter) {
+                                                    Function<T, @Nullable K> keyGetter) {
         return addAcquire(ks -> fetcher.apply(new ArrayList<>(ks)), keyGetter);
     }
 
     public <K, T> Acquire<E, K, T> addAcquireInMainData(Function<Collection<E>, Collection<T>> fetcher,
-                                                        Function<T, K> keyGetter) {
-        Function<Set<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.apply(this.mainData), keyGetter);
+                                                        Function<T, @Nullable K> keyGetter) {
+        Function<Collection<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.apply(this.mainData), keyGetter);
         return addAcquire(mapFetcher);
     }
 
     public <K, T> Acquire<E, K, T> addAcquireInExtra(Supplier<Collection<T>> fetcher,
-                                                     Function<T, K> keyGetter) {
-        Function<Set<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.get(), keyGetter);
+                                                     Function<T, @Nullable K> keyGetter) {
+        Function<Collection<K>, Map<K, T>> mapFetcher = ks -> toMap(fetcher.get(), keyGetter);
         return addAcquire(mapFetcher);
     }
 
@@ -184,7 +193,7 @@ public class Assign<E> {
         return this;
     }
 
-    public <P> Assign<E> addAssignValueIfAbsent(Function<E, P> eGetter, BiConsumer<E, P> eSetter, P value) {
+    public <P> Assign<E> addAssignValueIfAbsent(Function<E, @Nullable P> eGetter, BiConsumer<E, P> eSetter, P value) {
         this.assignValues.add(e -> {
             if (Objects.isNull(eGetter.apply(e))) {
                 eSetter.accept(e, value);
@@ -231,7 +240,7 @@ public class Assign<E> {
         } else {
             this.executor = DEFAULT_EXECUTOR;
         }
-        if (Objects.isNull(this.timeout)) {
+        if (this.timeout <= 0) {
             this.timeout = Constants.TIMEOUT_SECONDS_30;
         }
         return this;
@@ -275,6 +284,16 @@ public class Assign<E> {
         return addOperates(keyGetter, keyOperates);
     }
 
+    public <K, F> Assign<E> addOperates(Function<E, K> keyGetter,
+                                        Map<K, Consumer<Collection<F>>> keyOperates,
+                                        Function<E, F> converter) {
+        Map<K, Consumer<Collection<E>>> eOperates = HashMap.newHashMap(keyOperates.size());
+        keyOperates.forEach((k, fConsumer) ->
+                eOperates.put(k, es -> fConsumer.accept(Streams.map(es, converter).toList())));
+        addOperates(keyGetter, eOperates);
+        return this;
+    }
+
     public <K> Assign<E> addOperates(Function<E, K> keyGetter, Map<K, Consumer<Collection<E>>> keyOperates) {
         Map<K, List<E>> keyMap = Streams.groupBy(
                 this.mainData,
@@ -303,7 +322,29 @@ public class Assign<E> {
         return this;
     }
 
-    public Assign<E> backSuper() {
+    /**
+     * 依赖于指定的 Assign，必须等指定的 Assign 执行完毕才可执行
+     *
+     * @param assign 依赖的 Assign
+     * @return this
+     */
+    public Assign<E> dependOn(Assign<E> assign) {
+        this.dependOnAssigns.add(assign);
+        assign.dependByAssign = this;
+        return this;
+    }
+
+    /**
+     * 被依赖
+     *
+     * @return Assign
+     */
+    public Assign<E> dependBy() {
+        Assign<E> eAssign = new Assign<>(this.mainData);
+        return eAssign.dependOn(this);
+    }
+
+    public Assign<E> backUpper() {
         Assign<E> assign = this.superAssign;
         if (Objects.isNull(assign)) {
             log.info("super assign is null, return self");
@@ -312,20 +353,35 @@ public class Assign<E> {
         return assign;
     }
 
-    public Assign<E> backSuperTo(int depth) {
+    public Assign<E> backUpperTo(int depth) {
         if (depth < ROOT_DEPTH || depth >= this.depth) {
             log.info("dept={} super assign is null, return self", depth);
             return this;
         }
-        Assign<E> assign = this.backSuper();
+        Assign<E> assign = this.backUpper();
         while (assign.depth > depth) {
-            assign = assign.backSuper();
+            assign = assign.backUpper();
         }
         return assign;
     }
 
-    public Assign<E> backSuperlative() {
-        return backSuperTo(ROOT_DEPTH);
+    public Assign<E> backUppermost() {
+        return backUpperTo(ROOT_DEPTH);
+    }
+
+    public Assign<E> backLower() {
+        if (Objects.nonNull(this.dependByAssign)) {
+            return this.dependByAssign;
+        }
+        return this;
+    }
+
+    public Assign<E> backLowest() {
+        Assign<E> assign = this;
+        while (Objects.nonNull(assign.dependByAssign)) {
+            assign = assign.dependByAssign;
+        }
+        return assign;
     }
 
     public void forEach(Consumer<E> consumer) {
@@ -341,8 +397,8 @@ public class Assign<E> {
         return new ArrayList<>(this.mainData);
     }
 
-    public <F> Assign<F> cast(Function<E, F> mapping) {
-        return new Assign<>(Streams.map(this.mainData, mapping).filter(Objects::nonNull).toList());
+    public <F> Assign<F> cast(Function<E, @Nullable F> mapping) {
+        return new Assign<>(Streams.map(this.mainData, mapping).toList());
     }
 
     public <F> Assign<F> casts(Function<Collection<E>, Collection<F>> mapping) {
@@ -357,6 +413,14 @@ public class Assign<E> {
             return this;
         }
         log.debug("Assign name:{}", this.name);
+        if (this.status.invoked()) {
+            log.debug("Assign:{} invoked", this.name);
+            return this;
+        }
+        // 依赖赋值先执行
+        if (CollectionUtils.isNotEmpty(this.dependOnAssigns)) {
+            this.dependOnAssigns.stream().filter(a -> !a.status.invoked()).forEach(Assign::invoke);
+        }
         this.invokeMain();
         int sum = this.acquires.stream().map(k -> k.isSuccess() ? 0 : 1).reduce(0, Integer::sum);
         if (sum == 0) {
@@ -366,7 +430,7 @@ public class Assign<E> {
         } else {
             this.status = InvokeStatusEnum.PARTIAL_FAIL;
         }
-        log.debug("status:{}", this.status);
+        log.debug("name:{} status:{}", this.name, this.status);
         this.invokeTiming.end();
         if (this.interruptStrategy.interrupt(this.status)) {
             log.debug("assign end, interruptStrategy:{}", this.interruptStrategy);
@@ -375,7 +439,7 @@ public class Assign<E> {
         this.invokeBranches();
         this.invokeSubs();
         this.invokeTiming.end();
-        if (Objects.isNull(this.superAssign)) {
+        if (Objects.isNull(this.superAssign) && Objects.isNull(this.dependByAssign)) {
             log.info("assign invoke report:{}", Jsons.str(this));
         }
         return this;
@@ -403,7 +467,7 @@ public class Assign<E> {
     static <T, R> void parallelExecute(Collection<T> ts,
                                        Function<T, R> function,
                                        @Nullable Executor executor,
-                                       @Nullable Long timeout,
+                                       long timeout,
                                        @Nullable Predicate<T> filter,
                                        @Nullable String errorMsg) {
         Stream<T> tStream = Streams.of(ts);
@@ -418,7 +482,7 @@ public class Assign<E> {
                 CompletableFuture.allOf(completableFutureList.toArray(new CompletableFuture[0]))
                         .get(ObjectUtils.defaultIfNull(timeout, Constants.TIMEOUT_SECONDS_30), TimeUnit.SECONDS);
             } catch (Exception e) {
-                if (StringUtils.hasText(errorMsg)) {
+                if (StringUtils.isNotBlank(errorMsg)) {
                     log.error(errorMsg, e);
                 }
                 BaseExceptionEnum.ASSIGN_PARALLEL_EXECUTE_EXCEPTION.throwException(e, errorMsg);
@@ -428,7 +492,7 @@ public class Assign<E> {
         }
     }
 
-    <T, R> Function<T, R> functionRunVirtualExecutor(Function<T, R> function) {
+    <T, R> Function<T, @Nullable R> functionRunVirtualExecutor(Function<T, @Nullable R> function) {
         // 由于虚拟线程可大批量创建，这里使用信号量（Semaphore）控制最大线程并发数，避免数据库连接等资源过渡消耗
         if (Objects.nonNull(this.semaphore)) {
             return t -> {

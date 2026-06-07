@@ -15,9 +15,15 @@ package "Layer 1: Container" #C8E6C9 {
         - mainData: Collection<E>
         - acquires: List<Acquire>
         - branches: List<Assign>
+        - subs: List<Consumer>
+        - dependOnAssigns: List<Assign>
+        - dependByAssign: Assign
         --
         + addAcquire(): Acquire
         + addBranch(f): Assign
+        + addSub(c): Assign
+        + dependOn(assign): Assign
+        + dependBy(): Assign
         + parallel(): Assign
         + invoke(): Assign
     }
@@ -82,7 +88,8 @@ package "Config" #FFF9C4 {
 ' ======================== 依赖关系 ========================
 
 Assign --> Acquire : contains
-Assign --> Assign : branches
+Assign --> Assign : branches (向下管理)
+Assign --> Assign : dependOn (向上依赖)
 Assign --> InvokeStatusEnum : uses
 Acquire --> Action : contains
 Action --> Assemble : contains
@@ -122,10 +129,23 @@ note right of Assign
   2、智能数据降级 (缓存→批量→单条)
   3、灵活策略控制 (中断、超时、异常)
   4、清晰分层设计 (容器→获取→映射→执行)
+  5、双向任务编排 (向下管理 + 向上依赖)
+
+  <b>双向编排模型:</b>
+  ┌─────────────────────────────┐
+  │    向下管理 (父→子)          │
+  │    branch: 条件分支           │
+  │    sub: 独立子任务            │
+  │    父持有子引用，自动触发      │
+  ├─────────────────────────────┤
+  │    向上依赖 (子→父/同级)      │
+  │    dependOn: 声明依赖         │
+  │    dependBy: 被依赖快捷方法   │
+  │    invoke时自动先执行依赖      │
+  └─────────────────────────────┘
 
   <b>性能指标:</b>
   代码简化: 70% | 性能提升: 2-10倍 | 代码行数: 20+行 → 5行
 end note
 
 @enduml
-

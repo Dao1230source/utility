@@ -1,12 +1,12 @@
 package org.source.utility.tree;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.apache.commons.collections4.CollectionUtils;
+import org.jspecify.annotations.Nullable;
 import org.source.utility.tree.define.AbstractNode;
 import org.source.utility.tree.define.Element;
 import org.source.utility.tree.define.EnhanceElement;
 import org.source.utility.utils.Streams;
-import org.springframework.lang.Nullable;
-import org.springframework.util.CollectionUtils;
 
 import java.util.*;
 
@@ -130,7 +130,7 @@ public class EnhanceNode<I extends Comparable<I>, E extends EnhanceElement<I>, N
         if (CollectionUtils.isEmpty(this.parents)) {
             return List.of();
         }
-        return Streams.retain(this.parents, Objects::nonNull).toList();
+        return List.copyOf(this.parents);
     }
 
     /**

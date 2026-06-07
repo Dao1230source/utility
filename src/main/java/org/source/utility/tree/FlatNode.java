@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.exception.BaseException;
 import org.source.utility.function.SFunction;
@@ -19,33 +20,33 @@ import java.util.List;
 import java.util.Objects;
 
 /**
-* 扁平节点类
-* <p>
-* 支持将元素的属性扁平化为 JSON 的节点实现。
-* 通过属性提取函数，将元素的多个属性直接作为节点的属性输出。
-* </p>
-* <p>
-* 特性：
-* <ul>
-*   <li>属性扁平化：将元素属性直接作为节点属性</li>
-*   <li>动态属性：支持任意数量的属性</li>
-*   <li>JSON 友好：通过 @JsonAnyGetter 实现属性映射</li>
-* </ul>
-* </p>
-* <p>
-* 使用场景：
-* <ul>
-*   <li>需要扁平化输出的树形结构</li>
-*   <li>RESTful API 的响应</li>
-*   <li>数据转换和聚合</li>
-* </ul>
-* </p>
-*
-* @param <I> ID 类型
-* @param <E> 元素类型
-* @author utility
-* @since 1.0
-*/
+ * 扁平节点类
+ * <p>
+ * 支持将元素的属性扁平化为 JSON 的节点实现。
+ * 通过属性提取函数，将元素的多个属性直接作为节点的属性输出。
+ * </p>
+ * <p>
+ * 特性：
+ * <ul>
+ *   <li>属性扁平化：将元素属性直接作为节点属性</li>
+ *   <li>动态属性：支持任意数量的属性</li>
+ *   <li>JSON 友好：通过 @JsonAnyGetter 实现属性映射</li>
+ * </ul>
+ * </p>
+ * <p>
+ * 使用场景：
+ * <ul>
+ *   <li>需要扁平化输出的树形结构</li>
+ *   <li>RESTful API 的响应</li>
+ *   <li>数据转换和聚合</li>
+ * </ul>
+ * </p>
+ *
+ * @param <I> ID 类型
+ * @param <E> 元素类型
+ * @author utility
+ * @since 1.0
+ */
 @Slf4j
 @JsonIgnoreProperties({"element", "properties"})
 @EqualsAndHashCode(callSuper = true)
@@ -56,7 +57,7 @@ public class FlatNode<I extends Comparable<I>, E extends Element<I>> extends Abs
      * 用于从元素中提取属性，生成动态的键值对
      */
     @JsonIgnore
-    private final List<SFunction<E, Object>> propertyGetters;
+    private final List<SFunction<E, @Nullable Object>> propertyGetters;
 
     /**
      * 动态属性映射

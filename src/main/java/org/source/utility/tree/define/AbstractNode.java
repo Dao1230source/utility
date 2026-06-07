@@ -3,12 +3,11 @@ package org.source.utility.tree.define;
 import com.fasterxml.jackson.annotation.*;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.source.utility.constant.Constants;
 import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.tree.Tree;
 import org.source.utility.utils.Jsons;
-import org.springframework.lang.Nullable;
-import org.springframework.util.CollectionUtils;
 
 import java.util.*;
 import java.util.function.BinaryOperator;
@@ -122,13 +121,15 @@ public abstract class AbstractNode<I extends Comparable<I>, E extends Element<I>
      */
     public N addChild(N child) {
         N resultNode = this.mergeNode(child, this.getChildrenMap());
-        this.getChildrenMap().put(resultNode.getId(), resultNode);
+        I id = resultNode.getId();
+        BaseExceptionEnum.NOT_NULL.nonNull(id, "new node id must not null");
+        this.getChildrenMap().put(Objects.requireNonNull(id), resultNode);
         return resultNode;
     }
 
     protected N mergeNode(N child, Map<I, N> childrenMap) {
         MergeNodeResult<I, E, N> result = mergeNode(child, Node::getId, childrenMap::get, this.getMergeHandler());
-        N resultNode = result.getResultNode();
+        N resultNode = result.resultNode();
         BaseExceptionEnum.NOT_NULL.nonNull(resultNode, "merged result node must not null");
         BaseExceptionEnum.NOT_NULL.nonNull(resultNode.getId(), "merged result node id must not null");
         return resultNode;
@@ -149,15 +150,15 @@ public abstract class AbstractNode<I extends Comparable<I>, E extends Element<I>
     public static <I extends Comparable<I>, E extends Element<I>, N extends AbstractNode<I, E, N>>
     MergeNodeResult<I, E, N> mergeNode(
             N n,
-            Function<N, I> idGetter,
-            Function<I, N> oldNodeGetter,
+            Function<N, @Nullable I> idGetter,
+            Function<I, @Nullable N> oldNodeGetter,
             @Nullable BinaryOperator<N> mergeHandler) {
         I id = idGetter.apply(n);
         BaseExceptionEnum.NOT_NULL.nonNull(id, "new node id must not null");
         N result = n;
-        N old = oldNodeGetter.apply(id);
+        N old = oldNodeGetter.apply(Objects.requireNonNull(id));
         if (Objects.isNull(old)) {
-            return new MergeNodeResult<>(n, null, result, MergeResultTypeEnum.ADD_NEW);
+            return new MergeNodeResult<>(n, old, result, MergeResultTypeEnum.ADD_NEW);
         }
         if (Objects.nonNull(mergeHandler)) {
             result = mergeHandler.apply(n, old);
@@ -199,7 +200,7 @@ public abstract class AbstractNode<I extends Comparable<I>, E extends Element<I>
         if (Objects.isNull(child)) {
             return;
         }
-        if (CollectionUtils.isEmpty(this.childrenMap)) {
+        if (this.childrenMap.isEmpty()) {
             return;
         }
         I childId = child.getId();
@@ -223,14 +224,15 @@ public abstract class AbstractNode<I extends Comparable<I>, E extends Element<I>
     public void clear() {
         this.element = null;
         this.parent = null;
-        if (Objects.nonNull(this.childrenMap)) {
-            this.childrenMap.clear();
-        }
+        this.childrenMap.clear();
     }
 
     @JsonIgnore
     public <X extends Throwable> E getElementOrElseThrow(Supplier<? extends X> exceptionSupplier) throws X {
-        return Optional.ofNullable(this.element).orElseThrow(exceptionSupplier);
+        if (Objects.isNull(this.element)) {
+            throw exceptionSupplier.get();
+        }
+        return this.element;
     }
 
     @JsonIgnore

@@ -80,12 +80,13 @@ public enum BaseExceptionEnum implements EnumProcessor<BaseException> {
      * exception
      */
     EXCEPTION_CLASS_MUST_IMPLEMENT_ENUM_PROCESSOR("异常类必须实现EnumProcessor接口"),
-    ENUM_PROCESSOR_GENERIC_MUST_INSTANCEOF_BASE_EXCEPTION("EnumProcessor的泛型类型必须是BaseException极其子类"),
+    ENUM_PROCESSOR_GENERIC_MUST_INSTANCEOF_BASE_EXCEPTION("EnumProcessor的泛型类型必须是BaseException及其子类"),
     /**
      * reflect
      */
     OBJECT_MUST_HAVE_NO_ARGS_CONSTRUCTOR("object must have no args constructor"),
     NO_ARGS_CONSTRUCTOR_NEW_INSTANCE_ERROR("no args constructor newInstance error"),
+    INVOKE_METHOD_EXCEPTION("invoke method exception"),
     ;
 
     private final String message;

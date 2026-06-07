@@ -34,6 +34,19 @@ public class Strings {
         return sb.toString();
     }
 
+    /**
+     * 移除指定前缀并将首字母小写
+     * <p>
+     * 通常用于将类名转换为方法名或变量名，例如：
+     * <pre>
+     *   removePrefixAndLowerFirst("getUserById", "get")  // 返回 "userById"
+     * </pre>
+     * </p>
+     *
+     * @param str    待处理的字符串
+     * @param prefix 要移除的前缀
+     * @return 移除前缀并将首字母小写后的字符串
+     */
     public static String removePrefixAndLowerFirst(String str, String prefix) {
         return String.valueOf(str.charAt(prefix.length())).toLowerCase() + str.substring(prefix.length() + 1);
     }

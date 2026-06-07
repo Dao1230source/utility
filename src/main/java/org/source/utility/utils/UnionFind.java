@@ -1,6 +1,6 @@
 package org.source.utility.utils;
 
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -75,19 +75,19 @@ public class UnionFind<I> {
      * 这使得后续的查找操作更快。
      * </p>
      *
-     * @param x 要查找的元素，如果不存在会自动创建
+     * @param i 要查找的元素，如果不存在会自动创建
      * @return 所在集合的根节点（代表元素）
      */
-    public I find(I x) {
-        if (!parent.containsKey(x)) {
-            makeSet(x);
+    public I find(I i) {
+        if (!parent.containsKey(i)) {
+            makeSet(i);
         }
-        I p = parent.get(x);
-        if (!Objects.equals(x, p)) {
+        I p = parent.get(i);
+        if (!Objects.equals(i, p)) {
             // 路径压缩：将 x 的父节点直接指向根节点
-            parent.put(x, find(p));
+            parent.put(i, find(p));
         }
-        return parent.get(x);
+        return parent.get(i);
     }
 
     /**

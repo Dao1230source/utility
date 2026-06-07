@@ -1,8 +1,8 @@
 package org.source.utility.tree.define;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import org.springframework.lang.Nullable;
-import org.springframework.util.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.jspecify.annotations.Nullable;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -46,7 +46,7 @@ public interface Node<I extends Comparable<I>, E extends Element<I>, N extends N
 
     @JsonIgnore
     default boolean hasChildren() {
-        return !CollectionUtils.isEmpty(this.getChildren());
+        return CollectionUtils.isNotEmpty(this.getChildren());
     }
 
     default void removeFromParent() {
@@ -65,7 +65,7 @@ public interface Node<I extends Comparable<I>, E extends Element<I>, N extends N
      */
     @Nullable
     static <I extends Comparable<I>, E extends Element<I>, N extends Node<I, E, N>, V> V getProperty(
-            @Nullable Node<I, E, N> n, Function<E, V> getter) {
+            @Nullable Node<I, E, N> n, Function<E, @Nullable V> getter) {
         if (Objects.isNull(n) || Objects.isNull(n.getElement())) {
             return null;
         }
@@ -99,7 +99,7 @@ public interface Node<I extends Comparable<I>, E extends Element<I>, N extends N
         if (includeItself) {
             list.add(current);
         }
-        while (Objects.nonNull(current) && Objects.nonNull(current.getParent())) {
+        while (Objects.nonNull(current.getParent())) {
             current = current.getParent();
             list.add(current);
         }

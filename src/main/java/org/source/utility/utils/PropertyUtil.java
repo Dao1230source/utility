@@ -1,20 +1,21 @@
 package org.source.utility.utils;
 
 import lombok.experimental.UtilityClass;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.reflect.FieldUtils;
+import org.jspecify.annotations.Nullable;
 import org.source.utility.constant.Constants;
-import org.springframework.lang.Nullable;
-import org.springframework.util.ReflectionUtils;
+import org.source.utility.enums.BaseExceptionEnum;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.Objects;
 
 /**
  * 属性名称工具类，支持将类的 private 属性名称自动转为 getter/setter 方法名
  *
  * @author zengfugen
  */
+@Slf4j
 @UtilityClass
 public class PropertyUtil {
 
@@ -251,20 +252,19 @@ public class PropertyUtil {
      * @return 属性值
      */
     public static @Nullable Object getProperty(Object target, String fieldName) {
-        Field field = ReflectionUtils.findField(target.getClass(), fieldName);
-        return getProperty(target, field);
+        try {
+            return FieldUtils.readField(target, fieldName, true);
+        } catch (IllegalAccessException e) {
+            throw BaseExceptionEnum.INVOKE_METHOD_EXCEPTION.newException(e, "object class:{} field name:{}", target.getClass(), fieldName);
+        }
     }
 
-    public static @Nullable Object getProperty(Object target, @Nullable Field field) {
-        if (Objects.isNull(field)) {
-            return null;
+    public static @Nullable Object getProperty(Object target, Field field) {
+        try {
+            return FieldUtils.readField(field, target, true);
+        } catch (IllegalAccessException e) {
+            throw BaseExceptionEnum.INVOKE_METHOD_EXCEPTION.newException(e, "object class:{} field name:{}", target.getClass(), field.getName());
         }
-        String getterName = PropertyUtil.toGetter(field);
-        Method getter = ReflectionUtils.findMethod(target.getClass(), getterName);
-        if (Objects.isNull(getter)) {
-            return null;
-        }
-        return ReflectionUtils.invokeMethod(getter, target);
     }
 
     /**
@@ -277,28 +277,18 @@ public class PropertyUtil {
      * @param value     属性值
      */
     public static void setProperty(Object target, String fieldName, Object value) {
-        Field field = ReflectionUtils.findField(target.getClass(), fieldName);
-        setProperty(target, field, value);
+        try {
+            FieldUtils.writeField(target, fieldName, value, true);
+        } catch (IllegalAccessException e) {
+            throw BaseExceptionEnum.INVOKE_METHOD_EXCEPTION.newException(e, "object class:{} field name:{}", target.getClass(), fieldName);
+        }
     }
 
-    /**
-     * 通过 setter 方法设置属性值
-     * <p>
-     * 使用 PropertyUtil 获取 setter 方法名，通过反射调用
-     *
-     * @param target 目标对象
-     * @param field  属性
-     * @param value  属性值
-     */
-    public static void setProperty(Object target, @Nullable Field field, @Nullable Object value) {
-        if (Objects.isNull(field)) {
-            return;
+    public static void setProperty(Object target, Field field, Object value) {
+        try {
+            FieldUtils.writeField(field, target, value, true);
+        } catch (IllegalAccessException e) {
+            throw BaseExceptionEnum.INVOKE_METHOD_EXCEPTION.newException(e, "object class:{} field name:{}", target.getClass(), field.getName());
         }
-        String setterName = PropertyUtil.toSetter(field);
-        Method setter = ReflectionUtils.findMethod(target.getClass(), setterName, field.getType());
-        if (Objects.isNull(setter)) {
-            return;
-        }
-        ReflectionUtils.invokeMethod(setter, target, value);
     }
 }

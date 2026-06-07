@@ -4,13 +4,13 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.jspecify.annotations.Nullable;
 import org.source.utility.enums.BaseExceptionEnum;
 import org.source.utility.exception.BaseException;
 import org.source.utility.tree.define.*;
 import org.source.utility.utils.Jsons;
 import org.source.utility.utils.Streams;
 import org.source.utility.utils.UnionFind;
-import org.springframework.lang.Nullable;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -116,7 +116,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
     /**
      * ID扩展，元素对象除了ID之外的唯一键
      */
-    private IdExtend<I, E, N> idExtend = IdExtend.defaultIdExtend();
+    private @Nullable IdExtend<I, E, N> idExtend;
 
     /**
      * 额外扩展的属性缓存，提升forEach等性能
@@ -215,17 +215,17 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         List<N> mergedNodes = Streams.map(toAddNodes, n -> {
             MergeNodeResult<I, E, N> mergedResult = AbstractNode.mergeNode(
                     n,
-                    this.getIdExtend().getIdGetter(),
+                    this.getIdExtend().idGetter(),
                     i -> this.obtainNodeFromCache(i, this.getIdExtend()),
                     this.getMergeHandler());
-            N resultNode = mergedResult.getResultNode();
-            if (MergeResultTypeEnum.ADD_NEW.equals(mergedResult.getResultType())) {
+            N resultNode = mergedResult.resultNode();
+            if (MergeResultTypeEnum.ADD_NEW.equals(mergedResult.resultType())) {
                 addedNodes.add(resultNode);
             }
             // 先将所有元素缓存，避免有可能父级数据在后，当前元素加入时找不到父级的情况
             this.cacheNode(resultNode);
             return resultNode;
-        }).filter(Objects::nonNull).toList();
+        }).toList();
         // 添加节点
         mergedNodes.forEach(node -> {
             N parent = this.getParent(node, this.getIdExtend());
@@ -283,7 +283,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         this.extendCacheIdExtends = List.copyOf(extendsList);
         // 初始化对应的缓存 Map
         for (IdExtend<I, E, N> ext : extendsList) {
-            this.extendCachMap.putIfAbsent(ext.getName(), new ConcurrentHashMap<>());
+            this.extendCachMap.putIfAbsent(ext.name(), new ConcurrentHashMap<>());
         }
     }
 
@@ -384,11 +384,11 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      * @param node 要缓存的节点
      */
     protected void cacheNode(N node) {
-        this.idMap.put(node.getId(), node);
+        this.idMap.put(Objects.requireNonNull(node.getId()), node);
         Streams.of(this.obtainAllIdExtends())
-                .filter(k -> !IdExtend.ID_NAME.equals(k.getName()))
-                .forEach(k -> this.extendCachMap.computeIfAbsent(k.getName(), name -> new ConcurrentHashMap<>())
-                        .put(k.getIdGetter().apply(node), node));
+                .filter(k -> !IdExtend.ID_NAME.equals(k.name()))
+                .forEach(k -> this.extendCachMap.computeIfAbsent(k.name(), name -> new ConcurrentHashMap<>())
+                        .put(Objects.requireNonNull(k.idGetter().apply(node)), node));
     }
 
     /**
@@ -402,11 +402,11 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      */
     private void removeCache(N node) {
         this.idMap.remove(node.getId());
-        Streams.of(this.obtainAllIdExtends()).filter(k -> !IdExtend.ID_NAME.equals(k.getName()))
+        Streams.of(this.obtainAllIdExtends()).filter(k -> !IdExtend.ID_NAME.equals(k.name()))
                 .forEach(k -> {
-                    Map<I, N> inMap = this.extendCachMap.get(k.getName());
+                    Map<I, N> inMap = this.extendCachMap.get(k.name());
                     if (Objects.nonNull(inMap)) {
-                        inMap.remove(k.getIdGetter().apply(node));
+                        inMap.remove(k.idGetter().apply(node));
                     }
                 });
     }
@@ -426,9 +426,9 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
     protected void checkIdExtendsUnmodified(N o, N n) {
         BaseExceptionEnum.TREE_MERGED_NODE_ID_MUST_EQUAL.isTrue(Objects.equals(n.getId(), o.getId()),
                 "new id:{}, old id:{}", n.getId(), o.getId());
-        Streams.of(this.obtainAllIdExtends()).filter(k -> !IdExtend.ID_NAME.equals(k.getName())).forEach(k -> {
-            I nValue = k.getIdGetter().apply(n);
-            I oValue = k.getIdGetter().apply(o);
+        Streams.of(this.obtainAllIdExtends()).filter(k -> !IdExtend.ID_NAME.equals(k.name())).forEach(k -> {
+            I nValue = k.idGetter().apply(n);
+            I oValue = k.idGetter().apply(o);
             BaseExceptionEnum.TREE_MERGED_NODE_ID_MUST_EQUAL.isTrue(Objects.equals(nValue, oValue),
                     "new key:{}, old key:{}", nValue, oValue);
         });
@@ -446,7 +446,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      * @return 对应的父节点，如果找不到则返回根节点
      */
     private N getParent(N n, IdExtend<I, E, N> idExtend) {
-        I id = idExtend.getParentIdGetter().apply(n);
+        I id = idExtend.parentIdGetter().apply(n);
         N parent = this.obtainNodeFromCache(id, idExtend);
         if (Objects.nonNull(parent)) {
             return parent;
@@ -475,7 +475,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
         if (idExtend.isDefault()) {
             old = this.idMap.get(id);
         } else {
-            Map<I, N> inMap = this.extendCachMap.get(idExtend.getName());
+            Map<I, N> inMap = this.extendCachMap.get(idExtend.name());
             if (Objects.nonNull(inMap)) {
                 old = inMap.get(id);
             }
@@ -533,7 +533,7 @@ public class Tree<I extends Comparable<I>, E extends Element<I>, N extends Abstr
      * 此方法是线程安全的，通过读锁保护
      * </p>
      *
-     * @param fieldName 扩展属性名称，对应{@link IdExtend#getName()}
+     * @param fieldName 扩展属性名称，对应{@link IdExtend#name()}
      * @param key       属性值
      * @return Optional包装的节点，如果未找到则为空Optional
      */
